@@ -1,0 +1,12 @@
+[
+  {
+    "stack": "infra",
+    "environment": "dev",
+    "aws_account_id": "851725213542"
+  },
+  {
+    "stack": "infra",
+    "environment": "prod",
+    "aws_account_id": "730335665754"
+  }
+]

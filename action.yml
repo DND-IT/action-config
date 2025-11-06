@@ -1,21 +1,60 @@
 name: 'action-config'
-description: 'Github Action for Managing configs'
+description: 'Github Action for reading configuration files and generating workflow matrices'
 author: 'group:default/dai'
 
 inputs:
-  # add your inputs here
+  config-path:
+    description: 'Path to the configuration file (JSON or YAML)'
+    required: true
+    default: '.github/matrix-config.json'
 
 outputs:
-  # add your outputs here
+  matrix:
+    description: 'JSON string containing the matrix configuration'
+    value: ${{ steps.read-config.outputs.matrix }}
 
 runs:
   using: 'composite'
   steps:
-    - name: run action
+    - name: Read configuration file
+      id: read-config
       shell: bash
       run: |
-        echo "running action-config"
-        # add your action logic here
+        CONFIG_FILE="${{ inputs.config-path }}"
+
+        if [ ! -f "$CONFIG_FILE" ]; then
+          echo "::error::Configuration file not found: $CONFIG_FILE"
+          exit 1
+        fi
+
+        # Detect file type and read accordingly
+        if [[ "$CONFIG_FILE" == *.json ]]; then
+          # Validate and minify JSON
+          if ! MATRIX=$(jq -c '.' "$CONFIG_FILE" 2>&1); then
+            echo "::error::Invalid JSON in $CONFIG_FILE: $MATRIX"
+            exit 1
+          fi
+        elif [[ "$CONFIG_FILE" == *.yaml ]] || [[ "$CONFIG_FILE" == *.yml ]]; then
+          # Convert YAML to JSON
+          if ! command -v yq &> /dev/null; then
+            echo "::error::yq is required to parse YAML files. Please install it first."
+            exit 1
+          fi
+          if ! MATRIX=$(yq -o=json -I=0 '.' "$CONFIG_FILE" 2>&1); then
+            echo "::error::Invalid YAML in $CONFIG_FILE: $MATRIX"
+            exit 1
+          fi
+        else
+          echo "::error::Unsupported file type. Use .json, .yaml, or .yml"
+          exit 1
+        fi
+
+        # Output the matrix
+        echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+        # Pretty print for logs
+        echo "::notice::Matrix configuration loaded successfully"
+        echo "$MATRIX" | jq '.'
 
 branding:
   icon: 'zap'

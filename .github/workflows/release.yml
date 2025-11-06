@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Manual tag for release (e.g., v1.2.3)'
+        required: false
+        type: string
+
+jobs:
+  release:
+    uses: DND-IT/github-workflows/.github/workflows/gh-release.yaml@main
+    with:
+      # Use semantic-release for automatic versioning based on conventional commits
+      use_semantic_release: true
+
+      # Update version aliases (v1, v1.2) to point to latest release
+      # Useful for action versioning (e.g., users can reference @v1)
+      update_version_aliases: true
+
+      # Manual tag (only used if workflow_dispatch is triggered with a tag)
+      tag: ${{ inputs.tag }}
+
+      # Set to false if not using GitHub App authentication
+      use_github_app: false
+    secrets:
+      # Uncomment if using GitHub App to bypass branch protection
+      # GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      # GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}

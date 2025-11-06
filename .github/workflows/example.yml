@@ -1,0 +1,47 @@
+name: Example Terraform Plan with Dynamic Matrix
+
+on:
+  pull_request:
+
+jobs:
+  # Job to read the configuration and output the matrix
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read matrix configuration
+        id: set-matrix
+        uses: DND-IT/action-config@v1
+        with:
+          config-path: '.github/matrix-config.json'
+
+  # Job that uses the dynamic matrix
+  plan:
+    needs: setup
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.setup.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Display matrix values
+        run: |
+          echo "Stack: ${{ matrix.stack }}"
+          echo "Environment: ${{ matrix.environment }}"
+          echo "AWS Account ID: ${{ matrix.aws_account_id }}"
+
+      # Your actual terraform plan workflow
+      # - name: Run Terraform Plan
+      #   uses: DND-IT/github-workflows/.github/workflows/tf-plan.yaml@v3
+      #   with:
+      #     tf_dir: deploy/${{ matrix.stack }}
+      #     tf_backend_config_files: deploy/${{ matrix.stack }}/environments/${{ matrix.environment }}.s3.tfbackend
+      #     tf_var_files: deploy/${{ matrix.stack }}/environments/${{ matrix.environment }}.tfvars
+      #     aws_oidc_role_arn: arn:aws:iam::${{ matrix.aws_account_id }}:role/cicd-iac
