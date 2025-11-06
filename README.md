@@ -175,6 +175,21 @@ This is a composite action that uses shell scripts to read and validate configur
 2. Validates the JSON/YAML syntax
 3. Outputs the configuration as a JSON string for use in matrix strategies
 
+### Testing
+
+Run tests locally:
+```bash
+./tests/test.sh
+```
+
+The action includes comprehensive tests:
+- ✅ JSON and YAML parsing
+- ✅ Invalid configuration rejection
+- ✅ Matrix generation and execution
+- ✅ Error handling
+
+See [tests/README.md](tests/README.md) for more details.
+
 ## Releases
 
 This action uses semantic-release for automated versioning based on conventional commits. When you push to `main`, a new release is automatically created if there are significant changes.

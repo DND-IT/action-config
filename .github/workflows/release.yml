@@ -27,7 +27,7 @@ jobs:
 
       # Set to false if not using GitHub App authentication
       use_github_app: false
-    secrets:
-      # Uncomment if using GitHub App to bypass branch protection
-      # GH_APP_ID: ${{ secrets.GH_APP_ID }}
-      # GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    # Uncomment secrets section if using GitHub App to bypass branch protection
+    # secrets:
+    #   GH_APP_ID: ${{ secrets.GH_APP_ID }}
+    #   GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}

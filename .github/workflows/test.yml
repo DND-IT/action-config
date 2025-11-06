@@ -1,4 +1,4 @@
-name: test action
+name: Test Action
 
 on:
   push:
@@ -8,12 +8,126 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  unit-tests:
     runs-on: ubuntu-latest
-    name: test action-config
+    name: Unit Tests
     steps:
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: test action
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Run unit tests
+        run: ./tests/test.sh
+
+  test-json-config:
+    runs-on: ubuntu-latest
+    name: Test with JSON Config
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Test action with JSON
+        id: json-test
         uses: ./
+        with:
+          config-path: 'tests/valid-config.json'
+
+      - name: Verify JSON output
+        run: |
+          echo "Matrix output: ${{ steps.json-test.outputs.matrix }}"
+          # Verify it's valid JSON
+          echo '${{ steps.json-test.outputs.matrix }}' | jq '.'
+          # Verify it's an array with 2 items
+          COUNT=$(echo '${{ steps.json-test.outputs.matrix }}' | jq '. | length')
+          if [ "$COUNT" -ne 2 ]; then
+            echo "Expected 2 items, got $COUNT"
+            exit 1
+          fi
+          echo "✓ JSON test passed"
+
+  test-yaml-config:
+    runs-on: ubuntu-latest
+    name: Test with YAML Config
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Test action with YAML
+        id: yaml-test
+        uses: ./
+        with:
+          config-path: 'tests/valid-config.yml'
+
+      - name: Verify YAML output
+        run: |
+          echo "Matrix output: ${{ steps.yaml-test.outputs.matrix }}"
+          # Verify it's valid JSON
+          echo '${{ steps.yaml-test.outputs.matrix }}' | jq '.'
+          # Verify it's an array with 2 items
+          COUNT=$(echo '${{ steps.yaml-test.outputs.matrix }}' | jq '. | length')
+          if [ "$COUNT" -ne 2 ]; then
+            echo "Expected 2 items, got $COUNT"
+            exit 1
+          fi
+          echo "✓ YAML test passed"
+
+  test-invalid-config:
+    runs-on: ubuntu-latest
+    name: Test Invalid Config Handling
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Test action with invalid JSON (should fail)
+        id: invalid-test
+        uses: ./
+        continue-on-error: true
+        with:
+          config-path: 'tests/invalid-config.json'
+
+      - name: Verify failure
+        run: |
+          if [ "${{ steps.invalid-test.outcome }}" = "success" ]; then
+            echo "✗ Expected action to fail with invalid config"
+            exit 1
+          fi
+          echo "✓ Invalid config correctly rejected"
+
+  test-matrix-usage:
+    runs-on: ubuntu-latest
+    name: Test Matrix Usage
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate matrix
+        id: set-matrix
+        uses: ./
+        with:
+          config-path: 'tests/valid-config.json'
+
+  verify-matrix:
+    needs: test-matrix-usage
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.test-matrix-usage.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    name: Verify Matrix - ${{ matrix.environment }}
+    steps:
+      - name: Display matrix values
+        run: |
+          echo "Stack: ${{ matrix.stack }}"
+          echo "Environment: ${{ matrix.environment }}"
+          echo "AWS Account ID: ${{ matrix.aws_account_id }}"
+          echo "✓ Matrix job executed successfully"
