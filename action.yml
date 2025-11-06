@@ -1,0 +1,22 @@
+name: 'action-config'
+description: 'Github Action for Managing configs'
+author: 'group:default/dai'
+
+inputs:
+  # add your inputs here
+
+outputs:
+  # add your outputs here
+
+runs:
+  using: 'composite'
+  steps:
+    - name: run action
+      shell: bash
+      run: |
+        echo "running action-config"
+        # add your action logic here
+
+branding:
+  icon: 'zap'
+  color: 'blue'
