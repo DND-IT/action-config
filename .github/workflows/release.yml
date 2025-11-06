@@ -25,9 +25,8 @@ jobs:
       # Manual tag (only used if workflow_dispatch is triggered with a tag)
       tag: ${{ inputs.tag }}
 
-      # Set to false if not using GitHub App authentication
-      use_github_app: false
-    # Uncomment secrets section if using GitHub App to bypass branch protection
-    # secrets:
-    #   GH_APP_ID: ${{ secrets.GH_APP_ID }}
-    #   GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      # Use GitHub App to bypass branch protection for changelog commits
+      use_github_app: true
+    secrets:
+      GH_APP_ID: ${{ secrets.FISSION_GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.FISSION_GH_APP_PRIVATE_KEY }}
