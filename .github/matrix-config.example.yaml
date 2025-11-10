@@ -1,7 +1,7 @@
 - stack: infra
   environment: dev
-  aws_account_id: "851725213542"
+  aws_account_id: "123456789012"
 
 - stack: infra
   environment: prod
-  aws_account_id: "730335665754"
+  aws_account_id: "098765432123"

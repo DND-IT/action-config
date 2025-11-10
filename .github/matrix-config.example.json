@@ -1,12 +1,38 @@
 [
   {
-    "stack": "infra",
+    "stack": "api",
     "environment": "dev",
-    "aws_account_id": "851725213542"
+    "aws_account_id": "111111111111",
+    "aws_region": "us-east-1"
   },
   {
-    "stack": "infra",
+    "stack": "api",
+    "environment": "staging",
+    "aws_account_id": "222222222222",
+    "aws_region": "us-east-1"
+  },
+  {
+    "stack": "api",
     "environment": "prod",
-    "aws_account_id": "730335665754"
+    "aws_account_id": "333333333333",
+    "aws_region": "us-west-2"
+  },
+  {
+    "stack": "frontend",
+    "environment": "dev",
+    "aws_account_id": "111111111111",
+    "aws_region": "us-east-1"
+  },
+  {
+    "stack": "frontend",
+    "environment": "staging",
+    "aws_account_id": "222222222222",
+    "aws_region": "us-east-1"
+  },
+  {
+    "stack": "frontend",
+    "environment": "prod",
+    "aws_account_id": "333333333333",
+    "aws_region": "us-west-2"
   }
 ]

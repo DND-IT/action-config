@@ -13,7 +13,7 @@ on:
 
 jobs:
   release:
-    uses: DND-IT/github-workflows/.github/workflows/gh-release.yaml@main
+    uses: DND-IT/github-workflows/.github/workflows/gh-release.yaml@v3
     with:
       # Use semantic-release for automatic versioning based on conventional commits
       use_semantic_release: true
@@ -25,8 +25,7 @@ jobs:
       # Manual tag (only used if workflow_dispatch is triggered with a tag)
       tag: ${{ inputs.tag }}
 
-      # Use GitHub App to bypass branch protection for changelog commits
-      use_github_app: true
+      # GitHub App credentials for creating releases
+      app_id: ${{ vars.FISSION_GH_APP_ID }}
     secrets:
-      GH_APP_ID: ${{ secrets.FISSION_GH_APP_ID }}
-      GH_APP_PRIVATE_KEY: ${{ secrets.FISSION_GH_APP_PRIVATE_KEY }}
+      app_private_key: ${{ secrets.FISSION_GH_APP_PRIVATE_KEY }}
