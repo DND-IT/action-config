@@ -17,7 +17,7 @@ jobs:
         id: set-matrix
         uses: DND-IT/action-config@v1
         with:
-          config-path: '.github/matrix-config.json'
+          config-path: '.github/matrix-config.example.json'
 
   # Job that uses the dynamic matrix
   plan:
@@ -26,10 +26,11 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJson(needs.setup.outputs.matrix) }}
+
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Display matrix values
         run: |
