@@ -14,47 +14,45 @@ A GitHub Action for centralized configuration management that enables you to def
 
 ## Quick Example
 
-**One Config File** (`.github/matrix-config.json`):
+**One Config File** (`.github/matrix-config.json`) - **New List Format**:
+
+Instead of writing 6 duplicate entries for 2 stacks × 3 environments, write this:
+
+```json
+{
+  "stacks": ["api", "frontend"],
+  "environments": ["dev", "staging", "prod"],
+  "config": {
+    "dev": {
+      "aws_account_id": "111111111111",
+      "aws_region": "us-east-1"
+    },
+    "staging": {
+      "aws_account_id": "222222222222",
+      "aws_region": "us-east-1"
+    },
+    "prod": {
+      "aws_account_id": "333333333333",
+      "aws_region": "us-west-2"
+    }
+  }
+}
+```
+
+**This automatically expands to 6 matrix entries:**
 ```json
 [
-  {
-    "stack": "api",
-    "environment": "dev",
-    "aws_account_id": "111111111111",
-    "aws_region": "us-east-1"
-  },
-  {
-    "stack": "api",
-    "environment": "staging",
-    "aws_account_id": "222222222222",
-    "aws_region": "us-east-1"
-  },
-  {
-    "stack": "api",
-    "environment": "prod",
-    "aws_account_id": "333333333333",
-    "aws_region": "us-west-2"
-  },
-  {
-    "stack": "frontend",
-    "environment": "dev",
-    "aws_account_id": "111111111111",
-    "aws_region": "us-east-1"
-  },
-  {
-    "stack": "frontend",
-    "environment": "staging",
-    "aws_account_id": "222222222222",
-    "aws_region": "us-east-1"
-  },
-  {
-    "stack": "frontend",
-    "environment": "prod",
-    "aws_account_id": "333333333333",
-    "aws_region": "us-west-2"
-  }
+  { "stack": "api", "environment": "dev", "aws_account_id": "111111111111", "aws_region": "us-east-1" },
+  { "stack": "api", "environment": "staging", "aws_account_id": "222222222222", "aws_region": "us-east-1" },
+  { "stack": "api", "environment": "prod", "aws_account_id": "333333333333", "aws_region": "us-west-2" },
+  { "stack": "frontend", "environment": "dev", "aws_account_id": "111111111111", "aws_region": "us-east-1" },
+  { "stack": "frontend", "environment": "staging", "aws_account_id": "222222222222", "aws_region": "us-east-1" },
+  { "stack": "frontend", "environment": "prod", "aws_account_id": "333333333333", "aws_region": "us-west-2" }
 ]
 ```
+
+**Add a new stack?** Just add `"database"` to the `stacks` array → instantly get 3 more environments!
+**Add a new environment?** Just add `"uat"` to `environments` and add its config → all 3 stacks automatically deploy there!
 
 **Multiple Jobs in the Same Workflow - All Reusing the Same Setup:**
 
@@ -130,12 +128,13 @@ Add a new environment? Update one config file, and all jobs instantly include it
 
 ## Benefits
 
-| Without action-config | With action-config |
-|----------------------|-------------------|
-| ❌ 150+ lines of duplicated YAML across 3 workflows | ✅ 30 lines in one config file |
-| ❌ Update 3+ workflows to add an environment | ✅ Update 1 config file |
-| ❌ Risk of drift between workflows | ✅ Single source of truth |
-| ❌ Hard to maintain and error-prone | ✅ Easy to maintain and validate |
+| Without action-config | With action-config (Array) | With action-config (List) |
+|----------------------|--------------------------|--------------------------|
+| ❌ 150+ lines of duplicated YAML | ✅ 30 lines in one config | ✅ **15 lines in one config** |
+| ❌ Update 3+ workflows to add environment | ✅ Update 1 config file | ✅ Add 1 line to a list |
+| ❌ 6 duplicated entries for 2×3 matrix | ✅ 6 explicit entries | ✅ **2 lists auto-expand to 6** |
+| ❌ Risk of drift between workflows | ✅ Single source of truth | ✅ Single source of truth |
+| ❌ Hard to maintain and error-prone | ✅ Easy to maintain | ✅ **Minimal and DRY** |
 
 ### Key Benefits
 
@@ -207,8 +206,68 @@ That's it! Your workflow now uses the centralized config.
 
 ## Configuration File Formats
 
-### JSON Format
+This action supports two formats: **List-based** (recommended) and **Array** (legacy).
 
+### List-Based Format (Recommended)
+
+Define lists of values that automatically expand into a Cartesian product matrix. This dramatically reduces duplication!
+
+**JSON:**
+```json
+{
+  "stacks": ["api", "frontend"],
+  "environments": ["dev", "staging", "prod"],
+  "config": {
+    "dev": { "aws_account_id": "111111111111" },
+    "staging": { "aws_account_id": "222222222222" },
+    "prod": { "aws_account_id": "333333333333" }
+  }
+}
+```
+
+**YAML:**
+```yaml
+stacks:
+  - api
+  - frontend
+
+environments:
+  - dev
+  - staging
+  - prod
+
+config:
+  dev:
+    aws_account_id: "111111111111"
+  staging:
+    aws_account_id: "222222222222"
+  prod:
+    aws_account_id: "333333333333"
+```
+
+**How it works:**
+- Any top-level array (like `stacks`, `environments`) becomes a matrix dimension
+- The `config` object provides environment-specific values that get merged based on the dimension values
+- Non-array top-level values are copied to every matrix entry
+- Result: 2 stacks × 3 environments = 6 matrix entries
+
+**Example output:**
+```json
+[
+  { "stack": "api", "environment": "dev", "aws_account_id": "111111111111" },
+  { "stack": "api", "environment": "staging", "aws_account_id": "222222222222" },
+  { "stack": "api", "environment": "prod", "aws_account_id": "333333333333" },
+  { "stack": "frontend", "environment": "dev", "aws_account_id": "111111111111" },
+  { "stack": "frontend", "environment": "staging", "aws_account_id": "222222222222" },
+  { "stack": "frontend", "environment": "prod", "aws_account_id": "333333333333" }
+]
+```
+
+### Array Format (Legacy)
+
+The traditional format is still fully supported for backward compatibility:
+
+**JSON:**
 ```json
 [
   {
@@ -222,8 +281,7 @@ That's it! Your workflow now uses the centralized config.
 ]
 ```
 
-### YAML Format
-
+**YAML:**
 ```yaml
 - key1: value1
   key2: value2
@@ -232,9 +290,13 @@ That's it! Your workflow now uses the centralized config.
   key2: value4
 ```
 
+This format gives you complete control but requires more lines when you have many combinations.
+
 ## Examples
 
-See the [example workflow](.github/workflows/example.yaml) and [example configuration file](.github/matrix-config.example.json) for a complete working example.
+See the [example workflow](.github/workflows/example.yaml) and example configuration files:
+- **List format:** [JSON](.github/matrix-config.list.json) | [YAML](.github/matrix-config.list.yml)
+- **Array format:** [JSON](.github/matrix-config.example.json)
 
 ## Development
 
