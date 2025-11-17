@@ -30,8 +30,8 @@ runs:
         # Detect file type and read accordingly
         if [[ "$CONFIG_FILE" == *.json ]]; then
           # Validate and minify JSON
-          if ! MATRIX=$(jq -c '.' "$CONFIG_FILE" 2>&1); then
-            echo "::error::Invalid JSON in $CONFIG_FILE: $MATRIX"
+          if ! CONFIG=$(jq -c '.' "$CONFIG_FILE" 2>&1); then
+            echo "::error::Invalid JSON in $CONFIG_FILE: $CONFIG"
             exit 1
           fi
         elif [[ "$CONFIG_FILE" == *.yaml ]] || [[ "$CONFIG_FILE" == *.yml ]]; then
@@ -40,8 +40,8 @@ runs:
             echo "::error::yq is required to parse YAML files. Please install it first."
             exit 1
           fi
-          if ! MATRIX=$(yq -o=json -I=0 '.' "$CONFIG_FILE" 2>&1); then
-            echo "::error::Invalid YAML in $CONFIG_FILE: $MATRIX"
+          if ! CONFIG=$(yq -o=json -I=0 '.' "$CONFIG_FILE" 2>&1); then
+            echo "::error::Invalid YAML in $CONFIG_FILE: $CONFIG"
             exit 1
           fi
         else
@@ -49,11 +49,84 @@ runs:
           exit 1
         fi
 
+        # Check if config is an array (legacy format) or object (new format)
+        if echo "$CONFIG" | jq -e 'type == "array"' > /dev/null 2>&1; then
+          # Legacy format: already an array, use as-is
+          MATRIX="$CONFIG"
+          echo "::notice::Using legacy array format"
+        elif echo "$CONFIG" | jq -e 'type == "object"' > /dev/null 2>&1; then
+          # New format: expand lists into Cartesian product
+          echo "::notice::Using list-based format, expanding to matrix..."
+
+          # Generate matrix from lists
+          MATRIX=$(echo "$CONFIG" | jq -c '
+            # Helper function to singularize common plural keys
+            def singularize:
+              if endswith("ies") then
+                .[:-3] + "y"
+              elif endswith("es") then
+                .[:-2]
+              elif endswith("s") then
+                .[:-1]
+              else
+                .
+              end;
+
+            # Extract the dimension arrays (any keys that are arrays)
+            . as $root |
+            to_entries |
+            map(select(.value | type == "array")) as $dimensions |
+
+            # Check if we have dimensions to expand
+            if ($dimensions | length) == 0 then
+              # No arrays found, treat as single item
+              [$root]
+            else
+              # Get the config object (non-array values, excluding "config" key)
+              ($root | to_entries | map(select((.value | type != "array") and .key != "config")) | from_entries) as $base_config |
+
+              # Create cartesian product of all dimension arrays
+              $dimensions |
+              reduce .[] as $dim (
+                [{}];
+                [.[] as $item |
+                 $dim.value[] as $val |
+                 $item + {($dim.key | singularize): $val}]
+              ) |
+
+              # For each combination, merge with corresponding config
+              map(. as $combo |
+                # Start with base config values
+                $base_config |
+                # Add the dimension values
+                . + $combo |
+                # If there is a "config" key with environment-specific settings, merge them
+                if $root.config then
+                  # Try to find config for any dimension value
+                  . + (
+                    $combo | to_entries |
+                    map($root.config[.value] // {}) |
+                    add // {}
+                  )
+                else . end
+              )
+            end
+          ')
+
+          if [ $? -ne 0 ]; then
+            echo "::error::Failed to expand list-based configuration"
+            exit 1
+          fi
+        else
+          echo "::error::Configuration must be either an array or an object"
+          exit 1
+        fi
+
         # Output the matrix
         echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
         # Pretty print for logs
-        echo "::notice::Matrix configuration loaded successfully"
+        echo "::notice::Matrix configuration loaded successfully:"
         echo "$MATRIX" | jq '.'
 
 branding:
