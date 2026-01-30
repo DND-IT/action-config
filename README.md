@@ -180,6 +180,12 @@ That's it! Your workflow now uses the centralized config.
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
 | `config-path` | Path to the configuration file (JSON or YAML) | No | `.github/matrix-config.json` |
+| `stack` | Filter to specific stack(s). Comma-separated for multiple (e.g. `api,frontend`) | No | |
+| `environment` | Filter to specific environment(s). Comma-separated for multiple (e.g. `dev,prod`) | No | |
+| `exclude` | JSON array of patterns to exclude (e.g. `[{"stack":"shared","environment":"dev"}]`) | No | |
+| `include` | JSON array of entries to append (e.g. `[{"stack":"shared"}]`) | No | |
+
+The `stack` and `environment` inputs are convenience filters applied **after** the config file is expanded. The `exclude` and `include` inputs work the same way as their config file counterparts but are applied after them, allowing workflow-level overrides.
 
 ## Outputs
 
@@ -289,6 +295,47 @@ You can combine both to fully control the matrix:
 ```
 
 This removes all `shared` entries from the cartesian product (both `shared/dev` and `shared/prod`), then appends a single `shared` entry without an environment.
+
+### Filtering via Action Inputs
+
+The `stack`, `environment`, `exclude`, and `include` inputs let you filter at the workflow level without changing the config file. This is especially useful with `workflow_dispatch`:
+
+```yaml
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        type: choice
+        options:
+          - ''
+          - dev
+          - staging
+          - prod
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-matrix
+        uses: DND-IT/action-config@v2
+        with:
+          environment: ${{ inputs.environment }}
+
+  deploy:
+    needs: setup
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.setup.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploying ${{ matrix.stack }} to ${{ matrix.environment }}"
+```
+
+When triggered manually with `environment: prod`, only prod entries are included. When left empty, all environments are included.
 
 ## Examples
 
