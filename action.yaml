@@ -71,6 +71,11 @@ runs:
 
           . as $root |
 
+          # Helper: check if an item matches all key/value pairs in a pattern
+          def matches(pattern):
+            . as $item |
+            all(pattern | to_entries[]; .key as $k | .value as $v | $item[$k] == $v);
+
           # Derive environment dimension from config keys if "config" exists
           (if $root.config then
             [{key: "environments", value: ($root.config | keys)}]
@@ -78,20 +83,29 @@ runs:
             []
           end) as $config_dimensions |
 
-          # Extract explicit dimension arrays (any keys that are arrays)
-          (to_entries | map(select(.value | type == "array"))) as $explicit_dimensions |
+          # Extract explicit dimension arrays (exclude reserved keys)
+          (to_entries | map(select(
+            (.value | type == "array") and
+            (.key != "exclude") and
+            (.key != "include")
+          ))) as $explicit_dimensions |
 
           # Merge: explicit dimensions + config-derived (config-derived only adds if not already present)
           ($explicit_dimensions | map(.key)) as $explicit_keys |
           ($explicit_dimensions + ($config_dimensions | map(select(.key as $k | $explicit_keys | index($k) | not)))) as $dimensions |
 
-          # Get base config (non-array values, excluding "config" key)
-          ($root | to_entries | map(select((.value | type != "array") and .key != "config")) | from_entries) as $base_config |
+          # Get base config (non-array values, excluding reserved keys)
+          ($root | to_entries | map(select(
+            (.value | type != "array") and
+            (.key != "config") and
+            (.key != "exclude") and
+            (.key != "include")
+          )) | from_entries) as $base_config |
 
-          if ($dimensions | length) == 0 then
-            [$root | del(.config)]
+          # Build cartesian product
+          (if ($dimensions | length) == 0 then
+            [$root | del(.config) | del(.exclude) | del(.include)]
           else
-            # Create cartesian product of all dimension arrays
             $dimensions |
             reduce .[] as $dim (
               [{}];
@@ -112,7 +126,17 @@ runs:
                 )
               else . end
             )
-          end
+          end) |
+
+          # Apply excludes
+          if $root.exclude then
+            map(select(. as $item |
+              all($root.exclude[]; . as $pattern | ($item | matches($pattern)) | not)
+            ))
+          else . end |
+
+          # Append includes
+          if $root.include then . + $root.include else . end
         ')
 
         if [ $? -ne 0 ]; then

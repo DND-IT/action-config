@@ -29,21 +29,34 @@ expand_config() {
 
     . as $root |
 
+    def matches(pattern):
+      . as $item |
+      all(pattern | to_entries[]; .key as $k | .value as $v | $item[$k] == $v);
+
     (if $root.config then
       [{key: "environments", value: ($root.config | keys)}]
     else
       []
     end) as $config_dimensions |
 
-    (to_entries | map(select(.value | type == "array"))) as $explicit_dimensions |
+    (to_entries | map(select(
+      (.value | type == "array") and
+      (.key != "exclude") and
+      (.key != "include")
+    ))) as $explicit_dimensions |
 
     ($explicit_dimensions | map(.key)) as $explicit_keys |
     ($explicit_dimensions + ($config_dimensions | map(select(.key as $k | $explicit_keys | index($k) | not)))) as $dimensions |
 
-    ($root | to_entries | map(select((.value | type != "array") and .key != "config")) | from_entries) as $base_config |
+    ($root | to_entries | map(select(
+      (.value | type != "array") and
+      (.key != "config") and
+      (.key != "exclude") and
+      (.key != "include")
+    )) | from_entries) as $base_config |
 
-    if ($dimensions | length) == 0 then
-      [$root | del(.config)]
+    (if ($dimensions | length) == 0 then
+      [$root | del(.config) | del(.exclude) | del(.include)]
     else
       $dimensions |
       reduce .[] as $dim (
@@ -64,7 +77,15 @@ expand_config() {
           )
         else . end
       )
-    end
+    end) |
+
+    if $root.exclude then
+      map(select(. as $item |
+        all($root.exclude[]; . as $pattern | ($item | matches($pattern)) | not)
+      ))
+    else . end |
+
+    if $root.include then . + $root.include else . end
   '
 }
 
@@ -154,6 +175,45 @@ if command -v yq &> /dev/null; then
   fi
 else
   echo -e "${YELLOW}⊘ SKIP${NC}: yq not installed, skipping YAML test"
+fi
+
+# Test 6: Exclude support
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Test: Exclude"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+EXCLUDE_CONFIG='{"stacks":["api","shared"],"config":{"dev":{"aws_account_id":"111"},"prod":{"aws_account_id":"222"}},"exclude":[{"stack":"shared","environment":"dev"}]}'
+EXPANDED=$(echo "$EXCLUDE_CONFIG" | expand_config)
+ITEM_COUNT=$(echo "$EXPANDED" | jq 'length')
+# 2 stacks × 2 envs = 4, minus 1 excluded = 3
+HAS_EXCLUDED=$(echo "$EXPANDED" | jq '[.[] | select(.stack == "shared" and .environment == "dev")] | length')
+
+if [ "$ITEM_COUNT" -eq 3 ] && [ "$HAS_EXCLUDED" -eq 0 ]; then
+  echo -e "${GREEN}✓ PASS${NC}: Exclude removed shared/dev (got $ITEM_COUNT items)"
+  TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+  echo -e "${RED}✗ FAIL${NC}: Expected 3 items without shared/dev, got $ITEM_COUNT (excluded present: $HAS_EXCLUDED)"
+  echo "$EXPANDED" | jq '.'
+  TESTS_FAILED=$((TESTS_FAILED + 1))
+fi
+
+# Test 7: Include support
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Test: Include"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+INCLUDE_CONFIG='{"stacks":["api"],"config":{"dev":{"aws_account_id":"111"}},"include":[{"stack":"shared","aws_account_id":"333"}]}'
+EXPANDED=$(echo "$INCLUDE_CONFIG" | expand_config)
+ITEM_COUNT=$(echo "$EXPANDED" | jq 'length')
+HAS_SHARED=$(echo "$EXPANDED" | jq '[.[] | select(.stack == "shared")] | length')
+
+if [ "$ITEM_COUNT" -eq 2 ] && [ "$HAS_SHARED" -eq 1 ]; then
+  echo -e "${GREEN}✓ PASS${NC}: Include appended shared entry (got $ITEM_COUNT items)"
+  TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+  echo -e "${RED}✗ FAIL${NC}: Expected 2 items with shared, got $ITEM_COUNT (shared count: $HAS_SHARED)"
+  echo "$EXPANDED" | jq '.'
+  TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 
 # Summary
