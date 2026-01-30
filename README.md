@@ -14,14 +14,13 @@ A GitHub Action for centralized configuration management that enables you to def
 
 ## Quick Example
 
-**One Config File** (`.github/matrix-config.json`) - **New List Format**:
+**One Config File** (`.github/matrix-config.json`):
 
-Instead of writing 6 duplicate entries for 2 stacks × 3 environments, write this:
+Instead of writing 6 duplicate entries for 2 stacks x 3 environments, write this:
 
 ```json
 {
   "stacks": ["api", "frontend"],
-  "environments": ["dev", "staging", "prod"],
   "config": {
     "dev": {
       "aws_account_id": "111111111111",
@@ -51,13 +50,15 @@ Instead of writing 6 duplicate entries for 2 stacks × 3 environments, write thi
 ]
 ```
 
-**Add a new stack?** Just add `"database"` to the `stacks` array → instantly get 3 more environments!
-**Add a new environment?** Just add `"uat"` to `environments` and add its config → all 3 stacks automatically deploy there!
+Environments are automatically derived from the `config` keys — no need to list them separately.
+
+**Add a new stack?** Just add `"database"` to the `stacks` array — instantly get 3 more environments!
+**Add a new environment?** Just add its config block — all stacks automatically deploy there!
 
 **Multiple Jobs in the Same Workflow - All Reusing the Same Setup:**
 
 <details>
-<summary>🚀 Terraform Workflow</summary>
+<summary>Terraform Workflow</summary>
 
 ```yaml
 name: Terraform Workflow
@@ -75,7 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - id: set-matrix
-        uses: DND-IT/action-config@v1
+        uses: DND-IT/action-config@v2
 
   # Plan before apply for all environments
   plan:
@@ -119,31 +120,12 @@ jobs:
 - **Total**: 20 jobs across both workflows, all using the same config file
 
 **The Power of This Pattern:**
-- ✅ One `setup` job reads the config
-- ✅ Multiple jobs (`plan`, `apply`) reuse the same matrix
-- ✅ All Terraform logic lives in reusable workflows
-- ✅ Your workflow file is just configuration mapping
+- One `setup` job reads the config
+- Multiple jobs (`plan`, `apply`) reuse the same matrix
+- All Terraform logic lives in reusable workflows
+- Your workflow file is just configuration mapping
 
 Add a new environment? Update one config file, and all jobs instantly include it!
-
-## Benefits
-
-| Without action-config | With action-config (Array) | With action-config (List) |
-|----------------------|--------------------------|--------------------------|
-| ❌ 150+ lines of duplicated YAML | ✅ 30 lines in one config | ✅ **15 lines in one config** |
-| ❌ Update 3+ workflows to add environment | ✅ Update 1 config file | ✅ Add 1 line to a list |
-| ❌ 6 duplicated entries for 2×3 matrix | ✅ 6 explicit entries | ✅ **2 lists auto-expand to 6** |
-| ❌ Risk of drift between workflows | ✅ Single source of truth | ✅ Single source of truth |
-| ❌ Hard to maintain and error-prone | ✅ Easy to maintain | ✅ **Minimal and DRY** |
-
-### Key Benefits
-
-- **🎯 Single Source of Truth**: Define your environments once, use everywhere
-- **♻️ Reusability**: Share the same matrix across plan, apply, test, lint, and custom workflows
-- **🛡️ Consistency**: No more config drift between workflows
-- **⚡ Faster Development**: Add environments in seconds, not hours
-- **✅ Automatic Validation**: Catches JSON/YAML syntax errors before workflow runs
-- **📦 Version Control**: Track all config changes in one place with proper git history
 
 ## Getting Started
 
@@ -152,16 +134,17 @@ Add a new environment? Update one config file, and all jobs instantly include it
 Create a configuration file in your repository (`.github/matrix-config.json`):
 
 ```json
-[
-  {
-    "environment": "dev",
-    "aws_account_id": "111111111111"
-  },
-  {
-    "environment": "prod",
-    "aws_account_id": "222222222222"
+{
+  "stacks": ["api"],
+  "config": {
+    "dev": {
+      "aws_account_id": "111111111111"
+    },
+    "prod": {
+      "aws_account_id": "222222222222"
+    }
   }
-]
+}
 ```
 
 ### 2. Use in Your Workflow
@@ -175,7 +158,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: set-matrix
-        uses: DND-IT/action-config@v1
+        uses: DND-IT/action-config@v2
         with:
           config-path: '.github/matrix-config.json'  # optional, this is the default
 
@@ -204,19 +187,16 @@ That's it! Your workflow now uses the centralized config.
 |--------|-------------|
 | `matrix` | JSON string containing the matrix configuration |
 
-## Configuration File Formats
+## Configuration Format
 
-This action supports two formats: **List-based** (recommended) and **Array** (legacy).
+The configuration file must be a JSON or YAML **object**. Any top-level array becomes a matrix dimension, and the `config` object provides per-environment values.
 
-### List-Based Format (Recommended)
-
-Define lists of values that automatically expand into a Cartesian product matrix. This dramatically reduces duplication!
+### Basic Example
 
 **JSON:**
 ```json
 {
   "stacks": ["api", "frontend"],
-  "environments": ["dev", "staging", "prod"],
   "config": {
     "dev": { "aws_account_id": "111111111111" },
     "staging": { "aws_account_id": "222222222222" },
@@ -231,11 +211,6 @@ stacks:
   - api
   - frontend
 
-environments:
-  - dev
-  - staging
-  - prod
-
 config:
   dev:
     aws_account_id: "111111111111"
@@ -246,57 +221,79 @@ config:
 ```
 
 **How it works:**
-- Any top-level array (like `stacks`, `environments`) becomes a matrix dimension
-- The `config` object provides environment-specific values that get merged based on the dimension values
-- Non-array top-level values are copied to every matrix entry
-- Result: 2 stacks × 3 environments = 6 matrix entries
+- Any top-level array (like `stacks`) becomes a matrix dimension
+- The `config` object's **keys** automatically become the `environment` dimension
+- Each config value is merged into matching matrix entries
+- Non-array, non-config top-level values are copied to every matrix entry
+- Plural keys are singularized (`stacks` → `stack`, `environments` → `environment`)
+- Result: 2 stacks x 3 environments = 6 matrix entries
 
-**Example output:**
+### Exclude
+
+Use `exclude` to remove specific combinations from the cartesian product. This follows the same pattern as [GitHub Actions matrix exclude](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflows-do/running-variations-of-jobs-in-a-workflow#excluding-matrix-configurations).
+
 ```json
-[
-  { "stack": "api", "environment": "dev", "aws_account_id": "111111111111" },
-  { "stack": "api", "environment": "staging", "aws_account_id": "222222222222" },
-  { "stack": "api", "environment": "prod", "aws_account_id": "333333333333" },
-  { "stack": "frontend", "environment": "dev", "aws_account_id": "111111111111" },
-  { "stack": "frontend", "environment": "staging", "aws_account_id": "222222222222" },
-  { "stack": "frontend", "environment": "prod", "aws_account_id": "333333333333" }
-]
-```
-
-### Array Format (Legacy)
-
-The traditional format is still fully supported for backward compatibility:
-
-**JSON:**
-```json
-[
-  {
-    "key1": "value1",
-    "key2": "value2"
+{
+  "stacks": ["api", "frontend", "shared"],
+  "config": {
+    "dev": { "aws_account_id": "111111111111" },
+    "prod": { "aws_account_id": "222222222222" }
   },
-  {
-    "key1": "value3",
-    "key2": "value4"
-  }
-]
+  "exclude": [
+    { "stack": "shared", "environment": "dev" }
+  ]
+}
 ```
 
-**YAML:**
-```yaml
-- key1: value1
-  key2: value2
+This produces 5 entries (3 stacks x 2 envs = 6, minus `shared/dev`).
 
-- key1: value3
-  key2: value4
+Each exclude entry is a partial match — any matrix item matching **all** the key/value pairs in the pattern is removed.
+
+### Include
+
+Use `include` to append standalone entries that bypass the cartesian product. Useful for stacks that don't need environments at all.
+
+```json
+{
+  "stacks": ["api", "frontend"],
+  "config": {
+    "dev": { "aws_account_id": "111111111111" },
+    "prod": { "aws_account_id": "222222222222" }
+  },
+  "include": [
+    { "stack": "shared", "aws_account_id": "333333333333" }
+  ]
+}
 ```
 
-This format gives you complete control but requires more lines when you have many combinations.
+This produces 5 entries: the 4 from the cartesian product, plus the `shared` entry appended at the end (with no `environment` field).
+
+### Using Exclude and Include Together
+
+You can combine both to fully control the matrix:
+
+```json
+{
+  "stacks": ["api", "shared"],
+  "config": {
+    "dev": { "aws_account_id": "111111111111" },
+    "prod": { "aws_account_id": "222222222222" }
+  },
+  "exclude": [
+    { "stack": "shared" }
+  ],
+  "include": [
+    { "stack": "shared", "aws_account_id": "333333333333" }
+  ]
+}
+```
+
+This removes all `shared` entries from the cartesian product (both `shared/dev` and `shared/prod`), then appends a single `shared` entry without an environment.
 
 ## Examples
 
 See the [example workflow](.github/workflows/example.yaml) and example configuration files:
-- **List format:** [JSON](.github/matrix-config.list.json) | [YAML](.github/matrix-config.list.yml)
-- **Array format:** [JSON](.github/matrix-config.example.json)
+- [JSON](.github/matrix-config.example.json) | [YAML](.github/matrix-config.example.yaml)
 
 ## Development
 
@@ -304,7 +301,9 @@ This is a composite action that uses shell scripts to read and validate configur
 
 1. Reads the specified configuration file
 2. Validates the JSON/YAML syntax
-3. Outputs the configuration as a JSON string for use in matrix strategies
+3. Expands the configuration into a cartesian product matrix
+4. Applies exclude/include rules
+5. Outputs the configuration as a JSON string for use in matrix strategies
 
 ### Testing
 
@@ -312,12 +311,6 @@ Run tests locally:
 ```bash
 ./tests/test.sh
 ```
-
-The action includes comprehensive tests:
-- ✅ JSON and YAML parsing
-- ✅ Invalid configuration rejection
-- ✅ Matrix generation and execution
-- ✅ Error handling
 
 See [tests/README.md](tests/README.md) for more details.
 
@@ -330,42 +323,32 @@ This action uses semantic-release for automated versioning based on conventional
 Use conventional commits to automatically determine the version bump:
 
 **Triggers Release:**
-- `feat:` - ✨ New feature (minor version bump, e.g., 1.0.0 → 1.1.0)
-- `fix:` - 🐛 Bug fix (patch version bump, e.g., 1.0.0 → 1.0.1)
-- `perf:` - ⚡ Performance improvement (patch version bump)
-- `revert:` - ⏪ Revert changes (patch version bump)
-- `BREAKING CHANGE:` - 💥 Breaking change (major version bump, e.g., 1.0.0 → 2.0.0)
+- `feat:` - New feature (minor version bump, e.g., 1.0.0 → 1.1.0)
+- `fix:` - Bug fix (patch version bump, e.g., 1.0.0 → 1.0.1)
+- `perf:` - Performance improvement (patch version bump)
+- `revert:` - Revert changes (patch version bump)
+- `BREAKING CHANGE:` - Breaking change (major version bump, e.g., 1.0.0 → 2.0.0)
 
 **No Release (documentation only):**
-- `docs:` - 📚 Documentation changes
-- `refactor:` - ♻️ Code refactoring
-- `style:` - 💎 Code style changes
-- `chore:` - 🔧 Maintenance tasks
-- `test:` - ✅ Test updates
-- `build:` - 🏗️ Build system changes
-- `ci:` - 👷 CI/CD changes
-
-The release notes are automatically generated and categorized with these emojis. A `CHANGELOG.md` file is automatically maintained in the repository.
-
-### Manual Releases
-
-You can also trigger a manual release via the Actions tab:
-
-1. Go to Actions → Release
-2. Click "Run workflow"
-3. Enter a tag (e.g., `v1.2.3`)
+- `docs:` - Documentation changes
+- `refactor:` - Code refactoring
+- `style:` - Code style changes
+- `chore:` - Maintenance tasks
+- `test:` - Test updates
+- `build:` - Build system changes
+- `ci:` - CI/CD changes
 
 ### Version Aliases
 
 The release workflow automatically updates version aliases:
-- `v1` - Always points to the latest v1.x.x release
-- `v1.2` - Always points to the latest v1.2.x release
+- `v2` - Always points to the latest v2.x.x release
+- `v2.1` - Always points to the latest v2.1.x release
 
 This allows users to pin to major or minor versions:
 ```yaml
-- uses: DND-IT/action-config@v1  # Always gets latest v1.x.x
-- uses: DND-IT/action-config@v1.2  # Always gets latest v1.2.x
-- uses: DND-IT/action-config@v1.2.3  # Pinned to specific version
+- uses: DND-IT/action-config@v2  # Always gets latest v2.x.x
+- uses: DND-IT/action-config@v2.1  # Always gets latest v2.1.x
+- uses: DND-IT/action-config@v2.1.0  # Pinned to specific version
 ```
 
 ## License
