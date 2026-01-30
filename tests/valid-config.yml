@@ -1,7 +1,0 @@
-- name: test1
-  value: foo
-  number: 123
-
-- name: test2
-  value: bar
-  number: 456

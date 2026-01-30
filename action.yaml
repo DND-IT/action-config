@@ -49,76 +49,74 @@ runs:
           exit 1
         fi
 
-        # Check if config is an array (legacy format) or object (new format)
-        if echo "$CONFIG" | jq -e 'type == "array"' > /dev/null 2>&1; then
-          # Legacy format: already an array, use as-is
-          MATRIX="$CONFIG"
-          echo "::notice::Using legacy array format"
-        elif echo "$CONFIG" | jq -e 'type == "object"' > /dev/null 2>&1; then
-          # New format: expand lists into Cartesian product
-          echo "::notice::Using list-based format, expanding to matrix..."
+        # Config must be an object
+        if ! echo "$CONFIG" | jq -e 'type == "object"' > /dev/null 2>&1; then
+          echo "::error::Configuration must be an object"
+          exit 1
+        fi
 
-          # Generate matrix from lists
-          MATRIX=$(echo "$CONFIG" | jq -c '
-            # Helper function to singularize common plural keys
-            def singularize:
-              if endswith("ies") then
-                .[:-3] + "y"
-              elif endswith("es") then
-                .[:-2]
-              elif endswith("s") then
-                .[:-1]
-              else
-                .
-              end;
-
-            # Extract the dimension arrays (any keys that are arrays)
-            . as $root |
-            to_entries |
-            map(select(.value | type == "array")) as $dimensions |
-
-            # Check if we have dimensions to expand
-            if ($dimensions | length) == 0 then
-              # No arrays found, treat as single item
-              [$root]
+        # Expand lists into Cartesian product matrix
+        MATRIX=$(echo "$CONFIG" | jq -c '
+          # Helper function to singularize common plural keys
+          def singularize:
+            if endswith("ies") then
+              .[:-3] + "y"
+            elif endswith("es") then
+              .[:-2]
+            elif endswith("s") then
+              .[:-1]
             else
-              # Get the config object (non-array values, excluding "config" key)
-              ($root | to_entries | map(select((.value | type != "array") and .key != "config")) | from_entries) as $base_config |
+              .
+            end;
 
-              # Create cartesian product of all dimension arrays
-              $dimensions |
-              reduce .[] as $dim (
-                [{}];
-                [.[] as $item |
-                 $dim.value[] as $val |
-                 $item + {($dim.key | singularize): $val}]
-              ) |
+          . as $root |
 
-              # For each combination, merge with corresponding config
-              map(. as $combo |
-                # Start with base config values
-                $base_config |
-                # Add the dimension values
-                . + $combo |
-                # If there is a "config" key with environment-specific settings, merge them
-                if $root.config then
-                  # Try to find config for any dimension value
-                  . + (
-                    $combo | to_entries |
-                    map($root.config[.value] // {}) |
-                    add // {}
-                  )
-                else . end
-              )
-            end
-          ')
+          # Derive environment dimension from config keys if "config" exists
+          (if $root.config then
+            [{key: "environments", value: ($root.config | keys)}]
+          else
+            []
+          end) as $config_dimensions |
 
-          if [ $? -ne 0 ]; then
-            echo "::error::Failed to expand list-based configuration"
-            exit 1
-          fi
-        else
-          echo "::error::Configuration must be either an array or an object"
+          # Extract explicit dimension arrays (any keys that are arrays)
+          (to_entries | map(select(.value | type == "array"))) as $explicit_dimensions |
+
+          # Merge: explicit dimensions + config-derived (config-derived only adds if not already present)
+          ($explicit_dimensions | map(.key)) as $explicit_keys |
+          ($explicit_dimensions + ($config_dimensions | map(select(.key as $k | $explicit_keys | index($k) | not)))) as $dimensions |
+
+          # Get base config (non-array values, excluding "config" key)
+          ($root | to_entries | map(select((.value | type != "array") and .key != "config")) | from_entries) as $base_config |
+
+          if ($dimensions | length) == 0 then
+            [$root | del(.config)]
+          else
+            # Create cartesian product of all dimension arrays
+            $dimensions |
+            reduce .[] as $dim (
+              [{}];
+              [.[] as $item |
+               $dim.value[] as $val |
+               $item + {($dim.key | singularize): $val}]
+            ) |
+
+            # For each combination, merge with corresponding config
+            map(. as $combo |
+              $base_config |
+              . + $combo |
+              if $root.config then
+                . + (
+                  $combo | to_entries |
+                  map($root.config[.value] // {}) |
+                  add // {}
+                )
+              else . end
+            )
+          end
+        ')
+
+        if [ $? -ne 0 ]; then
+          echo "::error::Failed to expand configuration"
           exit 1
         fi
 
