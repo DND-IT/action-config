@@ -1,6 +1,5 @@
 {
   "stacks": ["api", "frontend"],
-  "environments": ["dev", "prod"],
   "config": {
     "dev": {
       "aws_account_id": "111111111111"

@@ -34,17 +34,16 @@ jobs:
         id: json-test
         uses: ./
         with:
-          config-path: 'tests/valid-config.json'
+          config-path: 'tests/valid-list-config.json'
 
       - name: Verify JSON output
         run: |
           echo "Matrix output: ${{ steps.json-test.outputs.matrix }}"
-          # Verify it's valid JSON
           echo '${{ steps.json-test.outputs.matrix }}' | jq '.'
-          # Verify it's an array with 2 items
+          # 2 stacks × 2 environments = 4 items
           COUNT=$(echo '${{ steps.json-test.outputs.matrix }}' | jq '. | length')
-          if [ "$COUNT" -ne 2 ]; then
-            echo "Expected 2 items, got $COUNT"
+          if [ "$COUNT" -ne 4 ]; then
+            echo "Expected 4 items, got $COUNT"
             exit 1
           fi
           echo "✓ JSON test passed"
@@ -65,17 +64,16 @@ jobs:
         id: yaml-test
         uses: ./
         with:
-          config-path: 'tests/valid-config.yml'
+          config-path: 'tests/valid-list-config.yml'
 
       - name: Verify YAML output
         run: |
           echo "Matrix output: ${{ steps.yaml-test.outputs.matrix }}"
-          # Verify it's valid JSON
           echo '${{ steps.yaml-test.outputs.matrix }}' | jq '.'
-          # Verify it's an array with 2 items
+          # 2 stacks × 2 environments = 4 items
           COUNT=$(echo '${{ steps.yaml-test.outputs.matrix }}' | jq '. | length')
-          if [ "$COUNT" -ne 2 ]; then
-            echo "Expected 2 items, got $COUNT"
+          if [ "$COUNT" -ne 4 ]; then
+            echo "Expected 4 items, got $COUNT"
             exit 1
           fi
           echo "✓ YAML test passed"
@@ -115,7 +113,7 @@ jobs:
         id: set-matrix
         uses: ./
         with:
-          config-path: 'tests/valid-config.json'
+          config-path: 'tests/valid-list-config.json'
 
   verify-matrix:
     needs: test-matrix-usage
