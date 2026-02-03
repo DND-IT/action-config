@@ -15,7 +15,7 @@ jobs:
 
       - name: Read matrix configuration
         id: set-matrix
-        uses: DND-IT/action-config@v1
+        uses: ./
         with:
           config-path: '.github/matrix-config.example.json'
 
