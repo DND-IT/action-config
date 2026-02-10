@@ -337,6 +337,66 @@ jobs:
 
 When triggered manually with `environment: prod`, only prod entries are included. When left empty, all environments are included.
 
+### Running Jobs Sequentially
+
+By default, matrix jobs run in parallel. To run them one at a time, set `max-parallel: 1` in the strategy:
+
+```yaml
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-matrix
+        uses: DND-IT/action-config@v2
+
+  deploy:
+    needs: setup
+    strategy:
+      max-parallel: 1
+      matrix:
+        include: ${{ fromJson(needs.setup.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploying ${{ matrix.stack }} to ${{ matrix.environment }}"
+```
+
+> **Note:** GitHub Actions does not guarantee the execution order of matrix entries when using `max-parallel: 1`. If you need a strict order (e.g., deploy to `dev` before `prod`), split them into separate jobs with `needs` dependencies:
+
+```yaml
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-matrix
+        uses: DND-IT/action-config@v2
+
+  deploy-dev:
+    needs: setup
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.setup.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    steps:
+      - if: matrix.environment == 'dev'
+        run: echo "Deploying ${{ matrix.stack }} to dev"
+
+  deploy-prod:
+    needs: [setup, deploy-dev]
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.setup.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    steps:
+      - if: matrix.environment == 'prod'
+        run: echo "Deploying ${{ matrix.stack }} to prod"
+```
+
 ## Examples
 
 See the [example workflow](.github/workflows/example.yaml) and example configuration files:
