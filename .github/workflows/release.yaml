@@ -1,31 +1,88 @@
-name: Release
+name: release
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Manual tag for release (e.g., v1.2.3)'
-        required: false
-        type: string
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  release:
-    uses: DND-IT/github-workflows/.github/workflows/gh-release.yaml@v3
-    with:
-      # Use semantic-release for automatic versioning based on conventional commits
-      use_semantic_release: true
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      major: ${{ steps.release.outputs.major }}
+      minor: ${{ steps.release.outputs.minor }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
-      # Update version aliases (v1, v1.2) to point to latest release
-      # Useful for action versioning (e.g., users can reference @v1)
-      update_version_aliases: true
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: release-please
+    steps:
+      - uses: actions/checkout@v4
 
-      # Manual tag (only used if workflow_dispatch is triggered with a tag)
-      tag: ${{ inputs.tag }}
+      - name: set up docker buildx
+        uses: docker/setup-buildx-action@v3
 
-      # GitHub App credentials for creating releases
-      app_id: ${{ vars.FISSION_GH_APP_ID }}
-    secrets:
-      app_private_key: ${{ secrets.FISSION_GH_APP_PRIVATE_KEY }}
+      - name: log in to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}},enable=${{ needs.release-please.outputs.release_created == 'true' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ needs.release-please.outputs.release_created == 'true' }}
+            type=semver,pattern={{major}},enable=${{ needs.release-please.outputs.release_created == 'true' }}
+            type=sha,prefix=
+
+      - name: build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  update-version-aliases:
+    runs-on: ubuntu-latest
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update major and minor version tags
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          MAJOR: ${{ needs.release-please.outputs.major }}
+          MINOR: ${{ needs.release-please.outputs.minor }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa "v${MAJOR}" -m "Update v${MAJOR} to ${TAG}"
+          git tag -fa "v${MAJOR}.${MINOR}" -m "Update v${MAJOR}.${MINOR} to ${TAG}"
+          git push origin "v${MAJOR}" --force
+          git push origin "v${MAJOR}.${MINOR}" --force

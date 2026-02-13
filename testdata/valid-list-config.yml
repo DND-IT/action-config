@@ -1,4 +1,4 @@
-stacks:
+stack:
   - api
   - frontend
 
@@ -7,3 +7,6 @@ config:
     aws_account_id: "111111111111"
   prod:
     aws_account_id: "222222222222"
+
+foo:
+  bar: baz
