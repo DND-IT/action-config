@@ -31,12 +31,16 @@ func run() error {
 		return err
 	}
 
-	// If changed-files-only is enabled, detect changes via git and filter stacks
-	if cfg.ChangedFilesOnly {
-		knownStacks := expander.ExtractStacks(raw)
-		if knownStacks == nil {
-			// No stack dimension in config — always run, no filtering
-			outputs.LogNotice("No stack dimension in config, skipping change detection")
+	optsCfg, dimensions := expander.ParseOptions(raw)
+
+	// Set the filter key from the config's dimension_key
+	opts.FilterKey = optsCfg.DimensionKey
+
+	// If change detection is enabled, detect changes via git and filter
+	if cfg.ChangeDetection {
+		knownValues := expander.ExtractDimensionValues(dimensions, optsCfg.DimensionKey)
+		if knownValues == nil {
+			outputs.LogNotice(fmt.Sprintf("No %s dimension in config, skipping change detection", optsCfg.DimensionKey))
 		} else {
 			changedFiles, err := gitdetect.DetectChangedFiles()
 			if err != nil {
@@ -44,41 +48,39 @@ func run() error {
 			}
 
 			if changedFiles == nil {
-				// Event type doesn't support change detection (e.g. workflow_dispatch)
-				outputs.LogNotice("Change detection not applicable for this event type, including all stacks")
+				outputs.LogNotice("Change detection not applicable for this event type, including all entries")
 			} else {
-				baseDir, _ := raw["base_dir"].(string)
-				changedStacks := expander.FilterChangedStacks(changedFiles, baseDir, knownStacks)
-				outputs.LogNotice(fmt.Sprintf("Detected %d changed files, %d/%d stacks with changes: %v", len(changedFiles), len(changedStacks), len(knownStacks), changedStacks))
+				changedValues := expander.FilterChanged(changedFiles, optsCfg.BaseDir, knownValues)
+				outputs.LogNotice(fmt.Sprintf("Detected %d changed files, %d/%d %s(s) with changes: %v", len(changedFiles), len(changedValues), len(knownValues), optsCfg.DimensionKey, changedValues))
 
-				if len(changedStacks) == 0 {
+				if len(changedValues) == 0 {
 					outputs.SetOutput("matrix", "[]")
-					outputs.SetOutput("any_changed", "false")
-					outputs.LogNotice("No stacks with changes, matrix is empty")
+					outputs.SetOutput("changes_detected", "false")
+					outputs.LogNotice("No entries with changes, matrix is empty")
 					return nil
 				}
 
-				// Merge with existing stack filter (intersect)
-				if len(opts.StackFilter) > 0 {
-					existing := make(map[string]bool, len(opts.StackFilter))
-					for _, s := range opts.StackFilter {
+				// Merge with existing filter (intersect)
+				if len(opts.FilterValues) > 0 {
+					existing := make(map[string]bool, len(opts.FilterValues))
+					for _, s := range opts.FilterValues {
 						existing[s] = true
 					}
 					var merged []string
-					for _, s := range changedStacks {
+					for _, s := range changedValues {
 						if existing[s] {
 							merged = append(merged, s)
 						}
 					}
-					opts.StackFilter = merged
+					opts.FilterValues = merged
 				} else {
-					opts.StackFilter = changedStacks
+					opts.FilterValues = changedValues
 				}
 			}
 		}
 	}
 
-	entries, err := expander.Expand(raw, opts)
+	entries, err := expander.Expand(dimensions, optsCfg, opts)
 	if err != nil {
 		return fmt.Errorf("failed to expand configuration: %w", err)
 	}
@@ -90,17 +92,17 @@ func run() error {
 
 	outputs.SetOutput("matrix", string(matrixJSON))
 
-	if cfg.ChangedFilesOnly {
+	if cfg.ChangeDetection {
 		if len(entries) > 0 {
-			outputs.SetOutput("any_changed", "true")
+			outputs.SetOutput("changes_detected", "true")
 		} else {
-			outputs.SetOutput("any_changed", "false")
+			outputs.SetOutput("changes_detected", "false")
 		}
 	}
 
 	// Log filters
-	if len(opts.StackFilter) > 0 {
-		outputs.LogNotice(fmt.Sprintf("Filtered by stack: %v", opts.StackFilter))
+	if len(opts.FilterValues) > 0 {
+		outputs.LogNotice(fmt.Sprintf("Filtered by %s: %v", opts.FilterKey, opts.FilterValues))
 	}
 	if len(opts.EnvironmentFilter) > 0 {
 		outputs.LogNotice(fmt.Sprintf("Filtered by environment: %v", opts.EnvironmentFilter))

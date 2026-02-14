@@ -75,28 +75,151 @@ func TestParseConfigFile_ValidYAML(t *testing.T) {
 	}
 }
 
-func TestExpand_BasicExpansion(t *testing.T) {
+func TestParseOptions_DefaultDimensionKey(t *testing.T) {
 	raw := RawConfig{
-		"stack": []any{"api", "frontend"},
-		"config": map[string]any{
+		"service": []any{"api", "frontend"},
+	}
+
+	optsCfg, dims := ParseOptions(raw)
+
+	if optsCfg.DimensionKey != "service" {
+		t.Errorf("expected default dimension_key 'service', got %q", optsCfg.DimensionKey)
+	}
+	if _, ok := dims["service"]; !ok {
+		t.Error("expected 'service' in dimensions")
+	}
+}
+
+func TestParseOptions_CustomDimensionKey(t *testing.T) {
+	raw := RawConfig{
+		"global": map[string]any{
+			"dimension_key": "app",
+			"base_dir":      "deploy",
+		},
+		"app": []any{"web", "worker"},
+	}
+
+	optsCfg, dims := ParseOptions(raw)
+
+	if optsCfg.DimensionKey != "app" {
+		t.Errorf("expected dimension_key 'app', got %q", optsCfg.DimensionKey)
+	}
+	if optsCfg.BaseDir != "deploy" {
+		t.Errorf("expected base_dir 'deploy', got %q", optsCfg.BaseDir)
+	}
+	if _, ok := dims["global"]; ok {
+		t.Error("global should not appear in dimensions")
+	}
+	if _, ok := dims["app"]; !ok {
+		t.Error("expected 'app' in dimensions")
+	}
+}
+
+func TestParseOptions_MissingGlobal(t *testing.T) {
+	raw := RawConfig{
+		"service": []any{"api"},
+	}
+
+	optsCfg, _ := ParseOptions(raw)
+
+	if optsCfg.DimensionKey != "service" {
+		t.Errorf("expected default dimension_key 'service', got %q", optsCfg.DimensionKey)
+	}
+	if optsCfg.BaseDir != "" {
+		t.Errorf("expected empty base_dir, got %q", optsCfg.BaseDir)
+	}
+}
+
+func TestParseOptions_GlobalConfigValues(t *testing.T) {
+	raw := RawConfig{
+		"global": map[string]any{
+			"dimension_key": "service",
+			"aws_region":    "us-east-1",
+			"timeout":       "30",
+		},
+		"service": []any{"api"},
+	}
+
+	optsCfg, dims := ParseOptions(raw)
+
+	if optsCfg.GlobalConfig == nil {
+		t.Fatal("expected GlobalConfig to be set")
+	}
+	if optsCfg.GlobalConfig["aws_region"] != "us-east-1" {
+		t.Errorf("expected aws_region 'us-east-1', got %v", optsCfg.GlobalConfig["aws_region"])
+	}
+	if optsCfg.GlobalConfig["timeout"] != "30" {
+		t.Errorf("expected timeout '30', got %v", optsCfg.GlobalConfig["timeout"])
+	}
+	// dimension_key should NOT be in GlobalConfig
+	if _, ok := optsCfg.GlobalConfig["dimension_key"]; ok {
+		t.Error("dimension_key should not appear in GlobalConfig")
+	}
+	if _, ok := dims["global"]; ok {
+		t.Error("global should not appear in dimensions")
+	}
+}
+
+func TestParseOptions_WithExcludeInclude(t *testing.T) {
+	raw := RawConfig{
+		"global": map[string]any{
+			"aws_region": "us-east-1",
+		},
+		"exclude": []any{
+			map[string]any{"service": "shared", "environment": "dev"},
+		},
+		"include": []any{
+			map[string]any{"service": "shared", "environment": "all"},
+		},
+		"environment": map[string]any{
+			"dev": map[string]any{"aws_account_id": "111"},
+		},
+		"service": []any{"api", "shared"},
+	}
+
+	optsCfg, dims := ParseOptions(raw)
+
+	if optsCfg.GlobalConfig == nil {
+		t.Fatal("expected GlobalConfig to be set")
+	}
+	if len(optsCfg.Exclude) != 1 {
+		t.Fatalf("expected 1 exclude pattern, got %d", len(optsCfg.Exclude))
+	}
+	if len(optsCfg.Include) != 1 {
+		t.Fatalf("expected 1 include entry, got %d", len(optsCfg.Include))
+	}
+	for _, key := range []string{"global", "exclude", "include"} {
+		if _, ok := dims[key]; ok {
+			t.Errorf("%s should not appear in dimensions", key)
+		}
+	}
+}
+
+func TestExpand_BasicExpansion(t *testing.T) {
+	dims := RawConfig{
+		"service": map[string]any{"api": nil, "frontend": nil},
+		"environment": map[string]any{
 			"dev":  map[string]any{"aws_account_id": "111111111111"},
 			"prod": map[string]any{"aws_account_id": "222222222222"},
 		},
 	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+	}
 
-	entries, err := Expand(raw, Options{})
+	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// 2 stacks × 2 environments = 4 entries
+	// 2 services x 2 environments = 4 entries
 	if len(entries) != 4 {
 		t.Fatalf("expected 4 entries, got %d", len(entries))
 	}
 
 	for _, entry := range entries {
-		if _, ok := entry["stack"]; !ok {
-			t.Error("entry missing 'stack' field")
+		if _, ok := entry["service"]; !ok {
+			t.Error("entry missing 'service' field")
 		}
 		if _, ok := entry["environment"]; !ok {
 			t.Error("entry missing 'environment' field")
@@ -104,32 +227,69 @@ func TestExpand_BasicExpansion(t *testing.T) {
 		if _, ok := entry["aws_account_id"]; !ok {
 			t.Error("entry missing 'aws_account_id' field")
 		}
+		if _, ok := entry["directory"]; !ok {
+			t.Error("entry missing 'directory' field")
+		}
 	}
 }
 
-func TestExpand_ConfigMerging(t *testing.T) {
-	raw := RawConfig{
-		"stack": []any{"api", "frontend"},
-		"config": map[string]any{
-			"dev":  map[string]any{"aws_account_id": "111111111111"},
-			"prod": map[string]any{"aws_account_id": "222222222222"},
+func TestExpand_PerDimensionValueConfig(t *testing.T) {
+	dims := RawConfig{
+		"service": map[string]any{
+			"api": map[string]any{"port": "8080"},
+		},
+		"environment": map[string]any{
+			"dev": map[string]any{"aws_account_id": "111111111111"},
 		},
 	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+	}
 
-	entries, err := Expand(raw, Options{})
+	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	for _, entry := range entries {
-		if entry["stack"] == "api" && entry["environment"] == "dev" {
-			if entry["aws_account_id"] != "111111111111" {
-				t.Errorf("expected aws_account_id '111111111111', got %v", entry["aws_account_id"])
-			}
-			return
-		}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
 	}
-	t.Error("api/dev entry not found")
+
+	e := entries[0]
+	if e["port"] != "8080" {
+		t.Errorf("expected port '8080' from service per-value config, got %v", e["port"])
+	}
+	if e["aws_account_id"] != "111111111111" {
+		t.Errorf("expected aws_account_id '111111111111' from environment per-value config, got %v", e["aws_account_id"])
+	}
+}
+
+func TestExpand_PerDimensionValueConfigOverrideOrder(t *testing.T) {
+	// Per-dimension-value configs merge in alphabetical dimension key order.
+	// "service" comes after "environment" alphabetically, so service config overrides.
+	dims := RawConfig{
+		"service": map[string]any{
+			"api": map[string]any{"port": "8080", "region": "us-west-2"},
+		},
+		"environment": map[string]any{
+			"dev": map[string]any{"region": "us-east-1"},
+		},
+	}
+	optsCfg := OptionsConfig{DimensionKey: "service"}
+
+	entries, err := Expand(dims, optsCfg, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+
+	// "service" is alphabetically after "environment", so service's region wins
+	if entries[0]["region"] != "us-west-2" {
+		t.Errorf("expected region 'us-west-2' (service overrides environment), got %v", entries[0]["region"])
+	}
 }
 
 func TestExpand_JSONFixture(t *testing.T) {
@@ -139,7 +299,8 @@ func TestExpand_JSONFixture(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	entries, err := Expand(raw, Options{})
+	optsCfg, dims := ParseOptions(raw)
+	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -156,7 +317,8 @@ func TestExpand_YAMLFixture(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	entries, err := Expand(raw, Options{})
+	optsCfg, dims := ParseOptions(raw)
+	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -179,11 +341,14 @@ func TestExpand_JSONAndYAMLProduceSameResult(t *testing.T) {
 		t.Fatalf("unexpected error parsing YAML: %v", err)
 	}
 
-	jsonEntries, err := Expand(jsonRaw, Options{})
+	jsonOptsCfg, jsonDims := ParseOptions(jsonRaw)
+	yamlOptsCfg, yamlDims := ParseOptions(yamlRaw)
+
+	jsonEntries, err := Expand(jsonDims, jsonOptsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error expanding JSON: %v", err)
 	}
-	yamlEntries, err := Expand(yamlRaw, Options{})
+	yamlEntries, err := Expand(yamlDims, yamlOptsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error expanding YAML: %v", err)
 	}
@@ -194,8 +359,8 @@ func TestExpand_JSONAndYAMLProduceSameResult(t *testing.T) {
 
 	sortEntries := func(entries []MatrixEntry) {
 		sort.Slice(entries, func(i, j int) bool {
-			si := entries[i]["stack"].(string) + entries[i]["environment"].(string)
-			sj := entries[j]["stack"].(string) + entries[j]["environment"].(string)
+			si := entries[i]["service"].(string) + entries[i]["environment"].(string)
+			sj := entries[j]["service"].(string) + entries[j]["environment"].(string)
 			return si < sj
 		})
 	}
@@ -210,59 +375,65 @@ func TestExpand_JSONAndYAMLProduceSameResult(t *testing.T) {
 	}
 }
 
-func TestExpand_ConfigLevelExclude(t *testing.T) {
-	raw := RawConfig{
-		"stack": []any{"api", "shared"},
-		"config": map[string]any{
+func TestExpand_OptionsExclude(t *testing.T) {
+	dims := RawConfig{
+		"service": map[string]any{"api": nil, "shared": nil},
+		"environment": map[string]any{
 			"dev":  map[string]any{"aws_account_id": "111111111111"},
 			"prod": map[string]any{"aws_account_id": "222222222222"},
 		},
-		"exclude": []any{
-			map[string]any{"stack": "shared", "environment": "dev"},
+	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+		Exclude: []MatrixEntry{
+			{"service": "shared", "environment": "dev"},
 		},
 	}
 
-	entries, err := Expand(raw, Options{})
+	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// 2×2=4 minus 1 excluded = 3
+	// 2x2=4 minus 1 excluded = 3
 	if len(entries) != 3 {
 		t.Fatalf("expected 3 entries, got %d", len(entries))
 	}
 
 	for _, entry := range entries {
-		if entry["stack"] == "shared" && entry["environment"] == "dev" {
+		if entry["service"] == "shared" && entry["environment"] == "dev" {
 			t.Error("shared/dev should have been excluded")
 		}
 	}
 }
 
-func TestExpand_ConfigLevelInclude(t *testing.T) {
-	raw := RawConfig{
-		"stack": []any{"api"},
-		"config": map[string]any{
+func TestExpand_OptionsInclude(t *testing.T) {
+	dims := RawConfig{
+		"service": []any{"api"},
+		"environment": map[string]any{
 			"dev": map[string]any{"aws_account_id": "111111111111"},
 		},
-		"include": []any{
-			map[string]any{"stack": "shared", "environment": "all"},
+	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+		Include: []MatrixEntry{
+			{"service": "shared", "environment": "all"},
 		},
 	}
 
-	entries, err := Expand(raw, Options{})
+	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// 1×1=1 plus 1 included = 2
+	// 1x1=1 plus 1 included = 2
 	if len(entries) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(entries))
 	}
 
 	found := false
 	for _, entry := range entries {
-		if entry["stack"] == "shared" && entry["environment"] == "all" {
+		if entry["service"] == "shared" && entry["environment"] == "all" {
 			found = true
 		}
 	}
@@ -271,16 +442,20 @@ func TestExpand_ConfigLevelInclude(t *testing.T) {
 	}
 }
 
-func TestExpand_InputStackFilter(t *testing.T) {
-	raw := RawConfig{
-		"stack": []any{"api", "frontend", "backend"},
-		"config": map[string]any{
+func TestExpand_InputDimensionKeyFilter(t *testing.T) {
+	dims := RawConfig{
+		"service": []any{"api", "frontend", "backend"},
+		"environment": map[string]any{
 			"dev": map[string]any{"aws_account_id": "111111111111"},
 		},
 	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+	}
 
-	entries, err := Expand(raw, Options{
-		StackFilter: []string{"api", "frontend"},
+	entries, err := Expand(dims, optsCfg, Options{
+		FilterKey:    "service",
+		FilterValues: []string{"api", "frontend"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -291,24 +466,27 @@ func TestExpand_InputStackFilter(t *testing.T) {
 	}
 
 	for _, entry := range entries {
-		stack := entry["stack"].(string)
-		if stack != "api" && stack != "frontend" {
-			t.Errorf("unexpected stack %q", stack)
+		svc := entry["service"].(string)
+		if svc != "api" && svc != "frontend" {
+			t.Errorf("unexpected service %q", svc)
 		}
 	}
 }
 
 func TestExpand_InputEnvironmentFilter(t *testing.T) {
-	raw := RawConfig{
-		"stack": []any{"api"},
-		"config": map[string]any{
+	dims := RawConfig{
+		"service": []any{"api"},
+		"environment": map[string]any{
 			"dev":     map[string]any{"aws_account_id": "111111111111"},
 			"staging": map[string]any{"aws_account_id": "222222222222"},
 			"prod":    map[string]any{"aws_account_id": "333333333333"},
 		},
 	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+	}
 
-	entries, err := Expand(raw, Options{
+	entries, err := Expand(dims, optsCfg, Options{
 		EnvironmentFilter: []string{"dev", "prod"},
 	})
 	if err != nil {
@@ -328,17 +506,20 @@ func TestExpand_InputEnvironmentFilter(t *testing.T) {
 }
 
 func TestExpand_InputExclude(t *testing.T) {
-	raw := RawConfig{
-		"stack": []any{"api", "frontend"},
-		"config": map[string]any{
+	dims := RawConfig{
+		"service": map[string]any{"api": nil, "frontend": nil},
+		"environment": map[string]any{
 			"dev":  map[string]any{"aws_account_id": "111111111111"},
 			"prod": map[string]any{"aws_account_id": "222222222222"},
 		},
 	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+	}
 
-	entries, err := Expand(raw, Options{
+	entries, err := Expand(dims, optsCfg, Options{
 		InputExclude: []MatrixEntry{
-			{"stack": "api", "environment": "dev"},
+			{"service": "api", "environment": "dev"},
 		},
 	})
 	if err != nil {
@@ -351,16 +532,19 @@ func TestExpand_InputExclude(t *testing.T) {
 }
 
 func TestExpand_InputInclude(t *testing.T) {
-	raw := RawConfig{
-		"stack": []any{"api"},
-		"config": map[string]any{
+	dims := RawConfig{
+		"service": []any{"api"},
+		"environment": map[string]any{
 			"dev": map[string]any{"aws_account_id": "111111111111"},
 		},
 	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+	}
 
-	entries, err := Expand(raw, Options{
+	entries, err := Expand(dims, optsCfg, Options{
 		InputInclude: []MatrixEntry{
-			{"stack": "monitoring", "environment": "global"},
+			{"service": "monitoring", "environment": "global"},
 		},
 	})
 	if err != nil {
@@ -373,12 +557,15 @@ func TestExpand_InputInclude(t *testing.T) {
 }
 
 func TestExpand_NoDimensions(t *testing.T) {
-	raw := RawConfig{
+	dims := RawConfig{
 		"app_name": "myapp",
 		"version":  "1.0",
 	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+	}
 
-	entries, err := Expand(raw, Options{})
+	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -396,24 +583,27 @@ func TestExpand_NoDimensions(t *testing.T) {
 }
 
 func TestExpand_MultipleCustomDimensions(t *testing.T) {
-	raw := RawConfig{
-		"stack":  []any{"api", "frontend"},
-		"region": []any{"us-east-1", "eu-west-1"},
+	dims := RawConfig{
+		"service": []any{"api", "frontend"},
+		"region":  []any{"us-east-1", "eu-west-1"},
+	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
 	}
 
-	entries, err := Expand(raw, Options{})
+	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// 2 stacks × 2 regions = 4 entries
+	// 2 services x 2 regions = 4 entries
 	if len(entries) != 4 {
 		t.Fatalf("expected 4 entries, got %d", len(entries))
 	}
 
 	for _, entry := range entries {
-		if _, ok := entry["stack"]; !ok {
-			t.Error("entry missing 'stack' field")
+		if _, ok := entry["service"]; !ok {
+			t.Error("entry missing 'service' field")
 		}
 		if _, ok := entry["region"]; !ok {
 			t.Error("entry missing 'region' field")
@@ -422,15 +612,18 @@ func TestExpand_MultipleCustomDimensions(t *testing.T) {
 }
 
 func TestExpand_BaseConfigPropagated(t *testing.T) {
-	raw := RawConfig{
-		"stack":    []any{"api"},
-		"app_name": "myapp",
-		"config": map[string]any{
+	dims := RawConfig{
+		"service": []any{"api"},
+		"environment": map[string]any{
 			"dev": map[string]any{"aws_account_id": "111111111111"},
 		},
+		"app_name": "myapp",
+	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
 	}
 
-	entries, err := Expand(raw, Options{})
+	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -442,32 +635,31 @@ func TestExpand_BaseConfigPropagated(t *testing.T) {
 	if entries[0]["app_name"] != "myapp" {
 		t.Errorf("expected app_name 'myapp', got %v", entries[0]["app_name"])
 	}
-	if entries[0]["stack"] != "api" {
-		t.Errorf("expected stack 'api', got %v", entries[0]["stack"])
+	if entries[0]["service"] != "api" {
+		t.Errorf("expected service 'api', got %v", entries[0]["service"])
 	}
 	if entries[0]["environment"] != "dev" {
 		t.Errorf("expected environment 'dev', got %v", entries[0]["environment"])
 	}
 }
 
-func TestExpand_ExplicitEnvironmentOverridesConfig(t *testing.T) {
-	// If "environment" array is explicitly provided, don't derive from config keys
-	raw := RawConfig{
-		"stack":       []any{"api"},
-		"environment": []any{"staging"},
-		"config": map[string]any{
-			"dev":     map[string]any{"aws_account_id": "111111111111"},
+func TestExpand_MapDimensionOnlySpecifiedValues(t *testing.T) {
+	dims := RawConfig{
+		"service": []any{"api"},
+		"environment": map[string]any{
 			"staging": map[string]any{"aws_account_id": "222222222222"},
-			"prod":    map[string]any{"aws_account_id": "333333333333"},
 		},
 	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+	}
 
-	entries, err := Expand(raw, Options{})
+	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Only 1 stack × 1 explicit environment = 1 entry
+	// Only 1 service x 1 environment = 1 entry
 	if len(entries) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(entries))
 	}
@@ -480,59 +672,22 @@ func TestExpand_ExplicitEnvironmentOverridesConfig(t *testing.T) {
 	}
 }
 
-func TestExpand_ConfigMergeAllComboValues(t *testing.T) {
-	// Config lookup should match ANY combo value, not just environment.
-	// Here "api" is both a stack value and a config key.
-	// Config keys "dev" and "api" derive environments: ["api", "dev"] (sorted).
-	// So stack=["api"] × environment=["api","dev"] = 2 entries.
-	raw := RawConfig{
-		"stack": []any{"api"},
-		"config": map[string]any{
-			"dev": map[string]any{"aws_account_id": "111111111111"},
-			"api": map[string]any{"port": "8080"},
-		},
-	}
-
-	entries, err := Expand(raw, Options{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if len(entries) != 2 {
-		t.Fatalf("expected 2 entries, got %d", len(entries))
-	}
-
-	for _, e := range entries {
-		if e["stack"] == "api" && e["environment"] == "api" {
-			if e["port"] != "8080" {
-				t.Errorf("expected port '8080', got %v", e["port"])
-			}
-		}
-		if e["stack"] == "api" && e["environment"] == "dev" {
-			if e["aws_account_id"] != "111111111111" {
-				t.Errorf("expected aws_account_id '111111111111', got %v", e["aws_account_id"])
-			}
-			// "api" stack should also get config["api"] merged
-			if e["port"] != "8080" {
-				t.Errorf("expected port '8080' from config[api] merge, got %v", e["port"])
-			}
-		}
-	}
-}
-
 func TestExpand_ExcludePartialMatch(t *testing.T) {
-	raw := RawConfig{
-		"stack": []any{"api", "frontend"},
-		"config": map[string]any{
+	dims := RawConfig{
+		"service": map[string]any{"api": nil, "frontend": nil},
+		"environment": map[string]any{
 			"dev":  map[string]any{"aws_account_id": "111111111111"},
 			"prod": map[string]any{"aws_account_id": "222222222222"},
 		},
-		"exclude": []any{
-			map[string]any{"environment": "dev"},
+	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+		Exclude: []MatrixEntry{
+			{"environment": "dev"},
 		},
 	}
 
-	entries, err := Expand(raw, Options{})
+	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -550,31 +705,36 @@ func TestExpand_ExcludePartialMatch(t *testing.T) {
 }
 
 func TestExpand_EmptyDimensionArray(t *testing.T) {
-	raw := RawConfig{
-		"stack": []any{},
-		"config": map[string]any{
+	dims := RawConfig{
+		"service": []any{},
+		"environment": map[string]any{
 			"dev": map[string]any{"aws_account_id": "111111111111"},
 		},
 	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+	}
 
-	entries, err := Expand(raw, Options{})
+	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// 0 stacks × 1 env = 0 entries
+	// 0 services x 1 env = 0 entries
 	if len(entries) != 0 {
 		t.Fatalf("expected 0 entries, got %d", len(entries))
 	}
 }
 
 func TestExpand_DimensionKeysUsedAsIs(t *testing.T) {
-	// Verify that dimension keys are NOT singularized
-	raw := RawConfig{
+	dims := RawConfig{
 		"services": []any{"web", "worker"},
 	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "services",
+	}
 
-	entries, err := Expand(raw, Options{})
+	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -583,112 +743,383 @@ func TestExpand_DimensionKeysUsedAsIs(t *testing.T) {
 		t.Fatalf("expected 2 entries, got %d", len(entries))
 	}
 
-	// Key should be "services", not "service"
 	for _, entry := range entries {
 		if _, ok := entry["services"]; !ok {
-			t.Error("entry should use key 'services' as-is, not singularized")
+			t.Error("entry should use key 'services' as-is")
 		}
 	}
 }
 
-func TestFilterChangedStacks_WithBaseDir(t *testing.T) {
+func TestExpand_DirectoryFieldWithBaseDir(t *testing.T) {
+	dims := RawConfig{
+		"service": map[string]any{"api": nil, "frontend": nil},
+		"environment": map[string]any{
+			"dev": map[string]any{"aws_account_id": "111111111111"},
+		},
+	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+		BaseDir:      "deploy",
+	}
+
+	entries, err := Expand(dims, optsCfg, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, entry := range entries {
+		dir, ok := entry["directory"].(string)
+		if !ok {
+			t.Fatal("entry missing 'directory' field")
+		}
+		svc := entry["service"].(string)
+		expected := "deploy/" + svc
+		if dir != expected {
+			t.Errorf("expected directory %q, got %q", expected, dir)
+		}
+	}
+}
+
+func TestExpand_DirectoryFieldWithoutBaseDir(t *testing.T) {
+	dims := RawConfig{
+		"service": []any{"api"},
+		"environment": map[string]any{
+			"dev": map[string]any{"aws_account_id": "111111111111"},
+		},
+	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+	}
+
+	entries, err := Expand(dims, optsCfg, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+
+	dir, ok := entries[0]["directory"].(string)
+	if !ok {
+		t.Fatal("entry missing 'directory' field")
+	}
+	if dir != "api" {
+		t.Errorf("expected directory 'api', got %q", dir)
+	}
+}
+
+func TestExpand_GlobalConfig(t *testing.T) {
+	dims := RawConfig{
+		"service": []any{"api", "frontend"},
+		"environment": map[string]any{
+			"dev": map[string]any{
+				"aws_account_id": "111111111111",
+			},
+			"prod": map[string]any{
+				"aws_account_id": "222222222222",
+				"aws_region":     "us-west-2",
+			},
+		},
+	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+		GlobalConfig: map[string]any{
+			"aws_region": "us-east-1",
+			"timeout":    "30",
+		},
+	}
+
+	entries, err := Expand(dims, optsCfg, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// 2 services x 2 envs = 4
+	if len(entries) != 4 {
+		t.Fatalf("expected 4 entries, got %d", len(entries))
+	}
+
+	for _, entry := range entries {
+		env := entry["environment"].(string)
+		// All entries should have timeout from global
+		if entry["timeout"] != "30" {
+			t.Errorf("expected timeout '30' from global, got %v", entry["timeout"])
+		}
+		// dev entries should have us-east-1 from global (not overridden)
+		if env == "dev" && entry["aws_region"] != "us-east-1" {
+			t.Errorf("expected aws_region 'us-east-1' for dev (from global), got %v", entry["aws_region"])
+		}
+		// prod entries should override global aws_region
+		if env == "prod" && entry["aws_region"] != "us-west-2" {
+			t.Errorf("expected aws_region 'us-west-2' for prod (override), got %v", entry["aws_region"])
+		}
+	}
+}
+
+func TestExpand_SortByDefault(t *testing.T) {
+	dims := RawConfig{
+		"service": []any{"frontend", "api"},
+		"environment": map[string]any{
+			"prod": map[string]any{"aws_account_id": "222222222222"},
+			"dev":  map[string]any{"aws_account_id": "111111111111"},
+		},
+	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+	}
+
+	entries, err := Expand(dims, optsCfg, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Default sort_by is ["environment"], so entries should be sorted by environment
+	if len(entries) != 4 {
+		t.Fatalf("expected 4 entries, got %d", len(entries))
+	}
+
+	// First two should be dev, last two should be prod
+	if entries[0]["environment"] != "dev" {
+		t.Errorf("expected first entry environment 'dev', got %v", entries[0]["environment"])
+	}
+	if entries[1]["environment"] != "dev" {
+		t.Errorf("expected second entry environment 'dev', got %v", entries[1]["environment"])
+	}
+	if entries[2]["environment"] != "prod" {
+		t.Errorf("expected third entry environment 'prod', got %v", entries[2]["environment"])
+	}
+	if entries[3]["environment"] != "prod" {
+		t.Errorf("expected fourth entry environment 'prod', got %v", entries[3]["environment"])
+	}
+}
+
+func TestExpand_SortByCustom(t *testing.T) {
+	dims := RawConfig{
+		"service": []any{"frontend", "api"},
+		"environment": map[string]any{
+			"prod": map[string]any{"aws_account_id": "222222222222"},
+			"dev":  map[string]any{"aws_account_id": "111111111111"},
+		},
+	}
+	optsCfg := OptionsConfig{
+		DimensionKey: "service",
+		SortBy:       []string{"service", "environment"},
+	}
+
+	entries, err := Expand(dims, optsCfg, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(entries) != 4 {
+		t.Fatalf("expected 4 entries, got %d", len(entries))
+	}
+
+	// Should be sorted by service first, then environment
+	expected := []struct{ svc, env string }{
+		{"api", "dev"},
+		{"api", "prod"},
+		{"frontend", "dev"},
+		{"frontend", "prod"},
+	}
+	for i, exp := range expected {
+		if entries[i]["service"] != exp.svc || entries[i]["environment"] != exp.env {
+			t.Errorf("entry %d: expected %s/%s, got %v/%v", i, exp.svc, exp.env, entries[i]["service"], entries[i]["environment"])
+		}
+	}
+}
+
+func TestParseOptions_SortBy(t *testing.T) {
+	raw := RawConfig{
+		"global": map[string]any{
+			"sort_by": []any{"service", "environment"},
+		},
+		"service": []any{"api"},
+	}
+
+	optsCfg, _ := ParseOptions(raw)
+
+	if len(optsCfg.SortBy) != 2 {
+		t.Fatalf("expected 2 sort_by keys, got %d", len(optsCfg.SortBy))
+	}
+	if optsCfg.SortBy[0] != "service" || optsCfg.SortBy[1] != "environment" {
+		t.Errorf("expected sort_by [service environment], got %v", optsCfg.SortBy)
+	}
+}
+
+func TestUniqueValues(t *testing.T) {
+	entries := []MatrixEntry{
+		{"service": "api", "environment": "dev"},
+		{"service": "api", "environment": "prod"},
+		{"service": "frontend", "environment": "dev"},
+		{"service": "frontend", "environment": "prod"},
+	}
+
+	services := UniqueValues(entries, "service")
+	if len(services) != 2 {
+		t.Fatalf("expected 2 unique services, got %d", len(services))
+	}
+	if services[0] != "api" || services[1] != "frontend" {
+		t.Errorf("expected [api frontend], got %v", services)
+	}
+
+	envs := UniqueValues(entries, "environment")
+	if len(envs) != 2 {
+		t.Fatalf("expected 2 unique environments, got %d", len(envs))
+	}
+	if envs[0] != "dev" || envs[1] != "prod" {
+		t.Errorf("expected [dev prod], got %v", envs)
+	}
+
+	// Key not present
+	missing := UniqueValues(entries, "nonexistent")
+	if len(missing) != 0 {
+		t.Fatalf("expected 0 values for missing key, got %d", len(missing))
+	}
+}
+
+func TestUniqueValues_PreservesOrder(t *testing.T) {
+	entries := []MatrixEntry{
+		{"environment": "prod"},
+		{"environment": "dev"},
+		{"environment": "staging"},
+		{"environment": "prod"},
+	}
+
+	envs := UniqueValues(entries, "environment")
+	if len(envs) != 3 {
+		t.Fatalf("expected 3 unique environments, got %d", len(envs))
+	}
+	// Should preserve first-occurrence order
+	if envs[0] != "prod" || envs[1] != "dev" || envs[2] != "staging" {
+		t.Errorf("expected [prod dev staging], got %v", envs)
+	}
+}
+
+func TestFilterChanged_WithBaseDir(t *testing.T) {
 	files := []string{
 		"deploy/infra/waf.tf",
 		"deploy/infra/variables.tf",
 		"deploy/networking/vpc.tf",
 		"README.md",
 	}
-	changed := FilterChangedStacks(files, "deploy", []string{"infra", "networking", "frontend"})
+	changed := FilterChanged(files, "deploy", []string{"infra", "networking", "frontend"})
 	if len(changed) != 2 {
-		t.Fatalf("expected 2 stacks, got %d: %v", len(changed), changed)
+		t.Fatalf("expected 2 values, got %d: %v", len(changed), changed)
 	}
 	if changed[0] != "infra" || changed[1] != "networking" {
 		t.Errorf("expected [infra networking], got %v", changed)
 	}
 }
 
-func TestFilterChangedStacks_WithoutBaseDir(t *testing.T) {
+func TestFilterChanged_WithoutBaseDir(t *testing.T) {
 	files := []string{
 		"infra/waf.tf",
 		"networking/vpc.tf",
 	}
-	changed := FilterChangedStacks(files, "", []string{"infra", "networking"})
+	changed := FilterChanged(files, "", []string{"infra", "networking"})
 	if len(changed) != 2 {
-		t.Fatalf("expected 2 stacks, got %d: %v", len(changed), changed)
+		t.Fatalf("expected 2 values, got %d: %v", len(changed), changed)
 	}
 	if changed[0] != "infra" || changed[1] != "networking" {
 		t.Errorf("expected [infra networking], got %v", changed)
 	}
 }
 
-func TestFilterChangedStacks_NoMatchingFiles(t *testing.T) {
+func TestFilterChanged_NoMatchingFiles(t *testing.T) {
 	files := []string{
 		"README.md",
 		".github/workflows/ci.yaml",
 	}
-	changed := FilterChangedStacks(files, "deploy", []string{"infra", "frontend"})
+	changed := FilterChanged(files, "deploy", []string{"infra", "frontend"})
 	if len(changed) != 0 {
-		t.Fatalf("expected 0 stacks, got %d: %v", len(changed), changed)
+		t.Fatalf("expected 0 values, got %d: %v", len(changed), changed)
 	}
 }
 
-func TestFilterChangedStacks_EmptyFiles(t *testing.T) {
-	changed := FilterChangedStacks([]string{}, "deploy", []string{"infra"})
+func TestFilterChanged_EmptyFiles(t *testing.T) {
+	changed := FilterChanged([]string{}, "deploy", []string{"infra"})
 	if len(changed) != 0 {
-		t.Fatalf("expected 0 stacks, got %d: %v", len(changed), changed)
+		t.Fatalf("expected 0 values, got %d: %v", len(changed), changed)
 	}
 }
 
-func TestFilterChangedStacks_OnlyMatchesKnownStacks(t *testing.T) {
+func TestFilterChanged_OnlyMatchesKnownValues(t *testing.T) {
 	files := []string{
 		"deploy/infra/waf.tf",
 		"deploy/unknown/file.tf",
 	}
-	// "unknown" is not in knownStacks, so it should not appear
-	changed := FilterChangedStacks(files, "deploy", []string{"infra", "frontend"})
+	changed := FilterChanged(files, "deploy", []string{"infra", "frontend"})
 	if len(changed) != 1 {
-		t.Fatalf("expected 1 stack, got %d: %v", len(changed), changed)
+		t.Fatalf("expected 1 value, got %d: %v", len(changed), changed)
 	}
 	if changed[0] != "infra" {
 		t.Errorf("expected [infra], got %v", changed)
 	}
 }
 
-func TestFilterChangedStacks_MultipleFilesInSameStack(t *testing.T) {
+func TestFilterChanged_MultipleFilesInSameValue(t *testing.T) {
 	files := []string{
 		"deploy/infra/waf.tf",
 		"deploy/infra/outputs.tf",
 		"deploy/infra/variables.tf",
 	}
-	changed := FilterChangedStacks(files, "deploy", []string{"infra", "frontend"})
+	changed := FilterChanged(files, "deploy", []string{"infra", "frontend"})
 	if len(changed) != 1 {
-		t.Fatalf("expected 1 stack, got %d: %v", len(changed), changed)
+		t.Fatalf("expected 1 value, got %d: %v", len(changed), changed)
 	}
 	if changed[0] != "infra" {
 		t.Errorf("expected [infra], got %v", changed)
 	}
 }
 
-func TestExtractStacks_Present(t *testing.T) {
+func TestExtractDimensionValues_ArrayPresent(t *testing.T) {
 	raw := RawConfig{
-		"stack": []any{"api", "infra"},
+		"service": []any{"api", "infra"},
 	}
-	stacks := ExtractStacks(raw)
-	if len(stacks) != 2 {
-		t.Fatalf("expected 2 stacks, got %d", len(stacks))
+	values := ExtractDimensionValues(raw, "service")
+	if len(values) != 2 {
+		t.Fatalf("expected 2 values, got %d", len(values))
 	}
-	if stacks[0] != "api" || stacks[1] != "infra" {
-		t.Errorf("expected [api infra], got %v", stacks)
+	if values[0] != "api" || values[1] != "infra" {
+		t.Errorf("expected [api infra], got %v", values)
 	}
 }
 
-func TestExtractStacks_NotPresent(t *testing.T) {
+func TestExtractDimensionValues_MapPresent(t *testing.T) {
+	raw := RawConfig{
+		"environment": map[string]any{
+			"prod": map[string]any{"aws_account_id": "222"},
+			"dev":  map[string]any{"aws_account_id": "111"},
+		},
+	}
+	values := ExtractDimensionValues(raw, "environment")
+	if len(values) != 2 {
+		t.Fatalf("expected 2 values, got %d", len(values))
+	}
+	// Map keys are sorted
+	if values[0] != "dev" || values[1] != "prod" {
+		t.Errorf("expected [dev prod], got %v", values)
+	}
+}
+
+func TestExtractDimensionValues_NotPresent(t *testing.T) {
 	raw := RawConfig{
 		"app_name": "myapp",
 	}
-	stacks := ExtractStacks(raw)
-	if stacks != nil {
-		t.Fatalf("expected nil, got %v", stacks)
+	values := ExtractDimensionValues(raw, "service")
+	if values != nil {
+		t.Fatalf("expected nil, got %v", values)
 	}
 }
 
+func TestExtractDimensionValues_NotArrayOrMap(t *testing.T) {
+	raw := RawConfig{
+		"service": "not-an-array",
+	}
+	values := ExtractDimensionValues(raw, "service")
+	if values != nil {
+		t.Fatalf("expected nil, got %v", values)
+	}
+}

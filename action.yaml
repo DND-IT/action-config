@@ -3,40 +3,40 @@ description: 'Github Action for reading configuration files and generating workf
 author: 'group:default/dai'
 
 inputs:
-  config-path:
+  config_path:
     description: 'Path to the configuration file (JSON or YAML)'
     required: true
     default: '.github/matrix-config.json'
-  stack:
-    description: 'Filter to specific stack(s). Comma-separated for multiple (e.g. "api,frontend")'
+  target:
+    description: 'Filter by dimension_key value(s). Comma-separated for multiple (e.g. "api,frontend").'
     required: false
     default: ''
   environment:
-    description: 'Filter to specific environment(s). Comma-separated for multiple (e.g. "dev,prod")'
+    description: 'Filter environments. Comma-separated for multiple (e.g. "dev,prod")'
     required: false
     default: ''
   exclude:
-    description: 'JSON array of patterns to exclude from the matrix (e.g. [{"stack":"shared","environment":"dev"}])'
+    description: 'JSON array of patterns to exclude from the matrix (e.g. [{"service":"shared","environment":"dev"}])'
     required: false
     default: ''
   include:
-    description: 'JSON array of entries to append to the matrix (e.g. [{"stack":"shared"}])'
+    description: 'JSON array of entries to append to the matrix (e.g. [{"service":"shared"}])'
     required: false
     default: ''
-  changed-files-only:
-    description: 'When true, use git to detect changed files and filter the matrix to only stacks with changes. Uses base_dir from config to map file paths to stacks. Requires actions/checkout with fetch-depth: 0.'
+  change_detection:
+    description: 'When true, use git to detect changed files and filter the matrix to only entries with changes. Uses base_dir from global to map file paths. Requires actions/checkout with fetch-depth: 0.'
     required: false
     default: 'false'
 
 outputs:
   matrix:
     description: 'JSON string containing the matrix configuration'
-  any_changed:
-    description: 'Whether any stacks have changes (true/false). Only meaningful when changed-files-only is true.'
+  changes_detected:
+    description: 'Whether any entries have changes (true/false). Only meaningful when change_detection is true.'
 
 runs:
   using: 'docker'
-  image: 'docker://ghcr.io/dnd-it/action-config:main'
+  image: 'docker://ghcr.io/dnd-it/action-config:1.2.0' # x-release-please-version
 
 branding:
   icon: 'zap'

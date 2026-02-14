@@ -1,0 +1,20 @@
+global:
+  dimension_key: services
+  base_dir: foo
+  aws_region: us-east-1
+
+environments:
+  dev:
+    aws_account_id: "111111111111"
+  prod:
+    aws_account_id: "222222222222"
+
+services:
+  api:
+    aws_region: us-west-2
+    foo:
+      - bar
+      - baz
+
+  frontend:
+    aws_account_id: "333333333333"

@@ -12,30 +12,30 @@ import (
 
 // Config holds all parsed input values.
 type Config struct {
-	ConfigPath       string
-	Stack            string
-	Environment      string
-	Exclude          string
-	Include          string
-	ChangedFilesOnly bool
+	ConfigPath      string
+	Target          string
+	Environment     string
+	Exclude         string
+	Include         string
+	ChangeDetection bool
 }
 
 // Parse reads inputs from environment variables.
 func Parse() *Config {
 	return &Config{
-		ConfigPath:       getEnv("CONFIG_PATH", ".github/matrix-config.json"),
-		Stack:            getEnv("STACK", ""),
+		ConfigPath:      getEnv("CONFIG_PATH", ".github/matrix-config.json"),
+		Target:          getEnv("TARGET", ""),
 		Environment:      getEnv("ENVIRONMENT", ""),
 		Exclude:          getEnv("EXCLUDE", ""),
 		Include:          getEnv("INCLUDE", ""),
-		ChangedFilesOnly: getEnv("CHANGED_FILES_ONLY", "false") == "true",
+		ChangeDetection: getEnv("CHANGE_DETECTION", "false") == "true",
 	}
 }
 
 // BuildExpanderOptions converts raw input strings to typed expander.Options.
 func (c *Config) BuildExpanderOptions() (expander.Options, error) {
 	opts := expander.Options{
-		StackFilter:       parseList(c.Stack, ","),
+		FilterValues:      parseList(c.Target, ","),
 		EnvironmentFilter: parseList(c.Environment, ","),
 	}
 
@@ -55,7 +55,7 @@ func (c *Config) BuildExpanderOptions() (expander.Options, error) {
 }
 
 func getEnv(name, defaultValue string) string {
-	key := "INPUT_" + strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
+	key := "INPUT_" + strings.ToUpper(name)
 	if v := os.Getenv(key); v != "" {
 		return v
 	}

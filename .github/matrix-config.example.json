@@ -1,17 +1,32 @@
 {
-  "stack": ["api", "frontend"],
-  "config": {
+  "global": {
+    "dimension_key": "service",
+    "base_dir": "deploy",
+    "sort_by": ["environment"],
+    "aws_region": "us-east-1"
+  },
+  "exclude": [
+    { "service": "shared", "environment": "dev" }
+  ],
+  "include": [
+    { "service": "shared" }
+  ],
+  "environment": {
     "dev": {
-      "aws_account_id": "111111111111",
-      "aws_region": "us-east-1"
+      "aws_account_id": "111111111111"
     },
     "staging": {
-      "aws_account_id": "222222222222",
-      "aws_region": "us-east-1"
+      "aws_account_id": "222222222222"
     },
     "prod": {
       "aws_account_id": "333333333333",
       "aws_region": "us-west-2"
     }
+  },
+  "service": {
+    "api": {
+      "port": "8080"
+    },
+    "frontend": null
   }
 }

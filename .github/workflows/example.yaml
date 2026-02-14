@@ -37,8 +37,9 @@ jobs:
 
       - name: display matrix values
         run: |
-          echo "Stack: ${{ matrix.stack }}"
+          echo "Service: ${{ matrix.service }}"
           echo "Environment: ${{ matrix.environment }}"
+          echo "Directory: ${{ matrix.directory }}"
           echo "AWS Account ID: ${{ matrix.aws_account_id }}"
           echo "AWS Region: ${{ matrix.aws_region }}"
           echo ""
@@ -49,7 +50,7 @@ jobs:
       # - name: Run Terraform Plan
       #   uses: DND-IT/github-workflows/.github/workflows/tf-plan.yaml@v3
       #   with:
-      #     tf_dir: deploy/${{ matrix.stack }}
-      #     tf_backend_config_files: deploy/${{ matrix.stack }}/environments/${{ matrix.environment }}.s3.tfbackend
-      #     tf_var_files: deploy/${{ matrix.stack }}/environments/${{ matrix.environment }}.tfvars
+      #     tf_dir: ${{ matrix.directory }}
+      #     tf_backend_config_files: ${{ matrix.directory }}/environments/${{ matrix.environment }}.s3.tfbackend
+      #     tf_var_files: ${{ matrix.directory }}/environments/${{ matrix.environment }}.tfvars
       #     aws_oidc_role_arn: arn:aws:iam::${{ matrix.aws_account_id }}:role/cicd-iac
