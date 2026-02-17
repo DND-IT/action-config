@@ -35,6 +35,10 @@ func DetectChangedFiles() ([]string, error) {
 		workspace = "."
 	}
 
+	// Mark workspace as safe to avoid "dubious ownership" errors in containers.
+	safe := exec.Command("git", "config", "--global", "--add", "safe.directory", workspace)
+	_ = safe.Run()
+
 	cmd := exec.Command("git", args...)
 	cmd.Dir = workspace
 	output, err := cmd.Output()
