@@ -31,15 +31,19 @@ jobs:
 
       - name: parse version
         id: version
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
         run: |
           VERSION="${{ inputs.version }}"
           VERSION="${VERSION#v}"
           MAJOR="${VERSION%%.*}"
           MINOR="${VERSION#*.}"
           MINOR="${MINOR%%.*}"
-          echo "full=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "major=${MAJOR}" >> "$GITHUB_OUTPUT"
-          echo "minor=${MAJOR}.${MINOR}" >> "$GITHUB_OUTPUT"
+          IMAGE="${{ env.REGISTRY }}/${IMAGE_NAME,,}"
+          echo "full=${IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "minor=${IMAGE}:${MAJOR}.${MINOR}" >> "$GITHUB_OUTPUT"
+          echo "major=${IMAGE}:${MAJOR}" >> "$GITHUB_OUTPUT"
+          echo "latest=${IMAGE}:latest" >> "$GITHUB_OUTPUT"
 
       - name: build and push
         uses: docker/build-push-action@v6
@@ -47,9 +51,9 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.full }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.minor }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ steps.version.outputs.full }}
+            ${{ steps.version.outputs.minor }}
+            ${{ steps.version.outputs.major }}
+            ${{ steps.version.outputs.latest }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
