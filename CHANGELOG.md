@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [2.0.0](https://github.com/DND-IT/action-config/compare/v1.2.0...v2.0.0) (2026-02-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* migrate to go ([#5](https://github.com/DND-IT/action-config/issues/5))
+
+### Features
+
+* migrate to go ([#5](https://github.com/DND-IT/action-config/issues/5)) ([6d3d27e](https://github.com/DND-IT/action-config/commit/6d3d27e75a71554fe641266efd75bb03ee692f9b))
+
 ## [1.2.0](https://github.com/DND-IT/action-config/compare/v1.1.0...v1.2.0) (2026-02-02)
 
 ### ⚠ BREAKING CHANGES
