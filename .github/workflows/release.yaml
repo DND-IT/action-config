@@ -20,6 +20,7 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
       major: ${{ steps.release.outputs.major }}
       minor: ${{ steps.release.outputs.minor }}
     steps:
@@ -59,9 +60,10 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
-            type=semver,pattern={{version}},enable=${{ needs.release-please.outputs.release_created == 'true' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ needs.release-please.outputs.release_created == 'true' }}
-            type=semver,pattern={{major}},enable=${{ needs.release-please.outputs.release_created == 'true' }}
+            type=raw,value=${{ needs.release-please.outputs.version }},enable=${{ needs.release-please.outputs.release_created == 'true' }}
+            type=raw,value=${{ needs.release-please.outputs.major }}.${{ needs.release-please.outputs.minor }},enable=${{ needs.release-please.outputs.release_created == 'true' }}
+            type=raw,value=${{ needs.release-please.outputs.major }},enable=${{ needs.release-please.outputs.release_created == 'true' }}
+            type=raw,value=latest,enable=${{ needs.release-please.outputs.release_created == 'true' }}
             type=sha,prefix=
 
       - name: build and push

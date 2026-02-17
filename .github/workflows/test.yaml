@@ -19,6 +19,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     name: lint
+    if: github.event.action != 'closed'
     steps:
       - uses: actions/checkout@v4
 
@@ -34,6 +35,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     name: test
+    if: github.event.action != 'closed'
     steps:
       - uses: actions/checkout@v4
 
