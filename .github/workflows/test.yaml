@@ -183,14 +183,21 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     steps:
       - name: delete pr image
-        uses: actions/delete-package-versions@v5
-        with:
-          package-name: action-config
-          package-type: container
-          min-versions-to-keep: 0
-          delete-only-untagged-versions: false
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tags: pr-${{ github.event.number }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          TAG: pr-${{ github.event.number }}
+        run: |
+          VERSION_ID=$(gh api \
+            "/orgs/${OWNER}/packages/container/action-config/versions" \
+            --jq ".[] | select(.metadata.container.tags[] == \"${TAG}\") | .id")
+          if [ -n "$VERSION_ID" ]; then
+            gh api --method DELETE \
+              "/orgs/${OWNER}/packages/container/action-config/versions/${VERSION_ID}"
+            echo "Deleted version ${VERSION_ID} (tag: ${TAG})"
+          else
+            echo "No version found with tag: ${TAG}"
+          fi
 
   verify-matrix:
     runs-on: ubuntu-latest
