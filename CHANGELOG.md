@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [2.0.1](https://github.com/DND-IT/action-config/compare/v2.0.0...v2.0.1) (2026-02-17)
+
+
+### Bug Fixes
+
+* safe checkout ([45c468d](https://github.com/DND-IT/action-config/commit/45c468d1c7405eb88eb795e7433b351d162afff1))
+
 ## [2.0.0](https://github.com/DND-IT/action-config/compare/v1.2.0...v2.0.0) (2026-02-17)
 
 
