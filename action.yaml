@@ -7,8 +7,12 @@ inputs:
     description: 'Path to the configuration file (JSON or YAML)'
     required: true
     default: '.github/matrix-config.json'
+  dimension_key:
+    description: 'Override the dimension_key from config. Switches the primary dimension and removes the config dimension from the matrix.'
+    required: false
+    default: ''
   target:
-    description: 'Filter by dimension_key value(s). Comma-separated for multiple (e.g. "api,frontend").'
+    description: 'Filter by dimension_key value(s). Comma-separated for multiple (e.g. "api,frontend"). If a single value matches a dimension name (not a value of the current dimension_key), it switches the primary dimension instead.'
     required: false
     default: ''
   environment:

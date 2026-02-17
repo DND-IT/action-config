@@ -36,6 +36,9 @@ func run() error {
 	// Set the filter key from the config's dimension_key
 	opts.FilterKey = optsCfg.DimensionKey
 
+	// Resolve dimension selection (explicit input or target shorthand)
+	expander.ResolveTarget(dimensions, &optsCfg, &opts, cfg.DimensionKey)
+
 	// If change detection is enabled, detect changes via git and filter
 	if cfg.ChangeDetection {
 		knownValues := expander.ExtractDimensionValues(dimensions, optsCfg.DimensionKey)

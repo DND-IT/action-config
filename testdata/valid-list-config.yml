@@ -11,3 +11,6 @@ environment:
 service:
   api:
   frontend:
+
+terraform:
+  infra:

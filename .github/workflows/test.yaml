@@ -60,6 +60,8 @@ jobs:
       matrix-filtered: ${{ steps.filtered.outputs.matrix }}
       matrix-exclude: ${{ steps.exclude.outputs.matrix }}
       matrix-include: ${{ steps.include.outputs.matrix }}
+      matrix-dimkey: ${{ steps.dimkey.outputs.matrix }}
+      matrix-target-dim: ${{ steps.target-dim.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
 
@@ -117,6 +119,20 @@ jobs:
           INPUT_INCLUDE='[{"service":"shared","environment":"all"}]' \
             ./action-config
 
+      - name: test dimension_key override
+        id: dimkey
+        run: |
+          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
+          INPUT_DIMENSION_KEY=terraform \
+            ./action-config
+
+      - name: test target dimension shorthand
+        id: target-dim
+        run: |
+          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
+          INPUT_TARGET=terraform \
+            ./action-config
+
       - name: test example config
         run: |
           INPUT_CONFIG_PATH=.github/matrix-config.example.json \
@@ -141,11 +157,13 @@ jobs:
             fi
           }
 
-          check "json"     4 '${{ needs.integration.outputs.matrix-json }}'
-          check "yaml"     4 '${{ needs.integration.outputs.matrix-yaml }}'
-          check "filtered" 2 '${{ needs.integration.outputs.matrix-filtered }}'
-          check "exclude"  3 '${{ needs.integration.outputs.matrix-exclude }}'
-          check "include"  5 '${{ needs.integration.outputs.matrix-include }}'
+          check "json"       4 '${{ needs.integration.outputs.matrix-json }}'
+          check "yaml"       4 '${{ needs.integration.outputs.matrix-yaml }}'
+          check "filtered"   2 '${{ needs.integration.outputs.matrix-filtered }}'
+          check "exclude"    3 '${{ needs.integration.outputs.matrix-exclude }}'
+          check "include"    5 '${{ needs.integration.outputs.matrix-include }}'
+          check "dimkey"     2 '${{ needs.integration.outputs.matrix-dimkey }}'
+          check "target-dim" 2 '${{ needs.integration.outputs.matrix-target-dim }}'
 
   docker:
     runs-on: ubuntu-latest

@@ -13,6 +13,7 @@ import (
 // Config holds all parsed input values.
 type Config struct {
 	ConfigPath      string
+	DimensionKey    string
 	Target          string
 	Environment     string
 	Exclude         string
@@ -24,6 +25,7 @@ type Config struct {
 func Parse() *Config {
 	return &Config{
 		ConfigPath:      getEnv("CONFIG_PATH", ".github/matrix-config.json"),
+		DimensionKey:    getEnv("DIMENSION_KEY", ""),
 		Target:          getEnv("TARGET", ""),
 		Environment:      getEnv("ENVIRONMENT", ""),
 		Exclude:          getEnv("EXCLUDE", ""),

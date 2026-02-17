@@ -536,6 +536,58 @@ func UniqueValues(entries []MatrixEntry, key string) []string {
 	return result
 }
 
+// ResolveTarget handles dimension selection. If dimensionKeyOverride is set (from
+// dimension_key input), it overrides the config's dimension_key and removes the old
+// dimension. Otherwise, if target is a single value matching a dimension name (but
+// not a value of the current dimension_key), it triggers the same switch.
+func ResolveTarget(raw RawConfig, optsCfg *OptionsConfig, opts *Options, dimensionKeyOverride string) {
+	configDimKey := optsCfg.DimensionKey
+
+	// Explicit dimension_key input override
+	if dimensionKeyOverride != "" && dimensionKeyOverride != configDimKey {
+		if isDimension(raw[dimensionKeyOverride]) {
+			delete(raw, configDimKey)
+			optsCfg.DimensionKey = dimensionKeyOverride
+			opts.FilterKey = dimensionKeyOverride
+			return
+		}
+	}
+
+	// Auto-detect: single target value matching a dimension name
+	if len(opts.FilterValues) != 1 {
+		return
+	}
+	target := opts.FilterValues[0]
+
+	if !isDimension(raw[target]) {
+		return
+	}
+
+	// If it's also a value of the current dimension_key, treat as value filter
+	for _, v := range ExtractDimensionValues(raw, configDimKey) {
+		if v == target {
+			return
+		}
+	}
+
+	// Switch dimensions
+	delete(raw, configDimKey)
+	optsCfg.DimensionKey = target
+	opts.FilterKey = target
+	opts.FilterValues = nil
+}
+
+// isDimension returns true if the value is a map or slice (i.e. a dimension).
+func isDimension(v any) bool {
+	if _, ok := v.(map[string]any); ok {
+		return true
+	}
+	if _, ok := toSlice(v); ok {
+		return true
+	}
+	return false
+}
+
 // sortedKeys returns the keys of a map sorted alphabetically.
 func sortedKeys[M ~map[string]V, V any](m M) []string {
 	keys := make([]string, 0, len(m))

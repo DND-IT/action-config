@@ -1123,3 +1123,178 @@ func TestExtractDimensionValues_NotArrayOrMap(t *testing.T) {
 		t.Fatalf("expected nil, got %v", values)
 	}
 }
+
+func TestResolveTarget_ExplicitOverride(t *testing.T) {
+	raw := RawConfig{
+		"service":     map[string]any{"api": nil, "frontend": nil},
+		"environment": map[string]any{"dev": nil, "prod": nil},
+		"terraform":   map[string]any{"infra": nil},
+	}
+	optsCfg := OptionsConfig{DimensionKey: "service"}
+	opts := Options{FilterKey: "service"}
+
+	ResolveTarget(raw, &optsCfg, &opts, "terraform")
+
+	if optsCfg.DimensionKey != "terraform" {
+		t.Errorf("expected dimension_key 'terraform', got %q", optsCfg.DimensionKey)
+	}
+	if opts.FilterKey != "terraform" {
+		t.Errorf("expected filter_key 'terraform', got %q", opts.FilterKey)
+	}
+	if _, ok := raw["service"]; ok {
+		t.Error("service dimension should have been removed")
+	}
+	if _, ok := raw["terraform"]; !ok {
+		t.Error("terraform dimension should still exist")
+	}
+	if _, ok := raw["environment"]; !ok {
+		t.Error("environment dimension should still exist")
+	}
+}
+
+func TestResolveTarget_TargetShorthand(t *testing.T) {
+	raw := RawConfig{
+		"service":     map[string]any{"api": nil, "frontend": nil},
+		"environment": map[string]any{"dev": nil, "prod": nil},
+		"terraform":   map[string]any{"infra": nil},
+	}
+	optsCfg := OptionsConfig{DimensionKey: "service"}
+	opts := Options{FilterKey: "service", FilterValues: []string{"terraform"}}
+
+	ResolveTarget(raw, &optsCfg, &opts, "")
+
+	if optsCfg.DimensionKey != "terraform" {
+		t.Errorf("expected dimension_key 'terraform', got %q", optsCfg.DimensionKey)
+	}
+	if opts.FilterKey != "terraform" {
+		t.Errorf("expected filter_key 'terraform', got %q", opts.FilterKey)
+	}
+	if opts.FilterValues != nil {
+		t.Errorf("expected nil filter_values, got %v", opts.FilterValues)
+	}
+	if _, ok := raw["service"]; ok {
+		t.Error("service dimension should have been removed")
+	}
+}
+
+func TestResolveTarget_ValueFilter(t *testing.T) {
+	raw := RawConfig{
+		"service":     map[string]any{"api": nil, "frontend": nil},
+		"environment": map[string]any{"dev": nil, "prod": nil},
+	}
+	optsCfg := OptionsConfig{DimensionKey: "service"}
+	opts := Options{FilterKey: "service", FilterValues: []string{"api"}}
+
+	ResolveTarget(raw, &optsCfg, &opts, "")
+
+	// Should not switch — "api" is a value of service, not a dimension name
+	if optsCfg.DimensionKey != "service" {
+		t.Errorf("expected dimension_key 'service', got %q", optsCfg.DimensionKey)
+	}
+	if len(opts.FilterValues) != 1 || opts.FilterValues[0] != "api" {
+		t.Errorf("expected filter_values [api], got %v", opts.FilterValues)
+	}
+}
+
+func TestResolveTarget_MultipleTargets(t *testing.T) {
+	raw := RawConfig{
+		"service":     map[string]any{"api": nil, "frontend": nil},
+		"environment": map[string]any{"dev": nil, "prod": nil},
+		"terraform":   map[string]any{"infra": nil},
+	}
+	optsCfg := OptionsConfig{DimensionKey: "service"}
+	opts := Options{FilterKey: "service", FilterValues: []string{"terraform", "api"}}
+
+	ResolveTarget(raw, &optsCfg, &opts, "")
+
+	// Multiple targets → no dimension switch
+	if optsCfg.DimensionKey != "service" {
+		t.Errorf("expected dimension_key 'service', got %q", optsCfg.DimensionKey)
+	}
+	if len(opts.FilterValues) != 2 {
+		t.Errorf("expected 2 filter_values, got %d", len(opts.FilterValues))
+	}
+}
+
+func TestResolveTarget_ExplicitWithTarget(t *testing.T) {
+	raw := RawConfig{
+		"service":     map[string]any{"api": nil, "frontend": nil},
+		"environment": map[string]any{"dev": nil, "prod": nil},
+		"terraform":   map[string]any{"infra": nil},
+	}
+	optsCfg := OptionsConfig{DimensionKey: "service"}
+	opts := Options{FilterKey: "service", FilterValues: []string{"infra"}}
+
+	ResolveTarget(raw, &optsCfg, &opts, "terraform")
+
+	// Explicit override switches dimension, target filter is preserved for value filtering
+	if optsCfg.DimensionKey != "terraform" {
+		t.Errorf("expected dimension_key 'terraform', got %q", optsCfg.DimensionKey)
+	}
+	if opts.FilterKey != "terraform" {
+		t.Errorf("expected filter_key 'terraform', got %q", opts.FilterKey)
+	}
+	// FilterValues should still contain "infra" for value filtering within the new dimension
+	if len(opts.FilterValues) != 1 || opts.FilterValues[0] != "infra" {
+		t.Errorf("expected filter_values [infra], got %v", opts.FilterValues)
+	}
+}
+
+func TestResolveTarget_ExplicitSameAsConfig(t *testing.T) {
+	raw := RawConfig{
+		"service":     map[string]any{"api": nil, "frontend": nil},
+		"environment": map[string]any{"dev": nil, "prod": nil},
+	}
+	optsCfg := OptionsConfig{DimensionKey: "service"}
+	opts := Options{FilterKey: "service", FilterValues: []string{"api"}}
+
+	ResolveTarget(raw, &optsCfg, &opts, "service")
+
+	// Same as config → no-op, treat target as value filter
+	if optsCfg.DimensionKey != "service" {
+		t.Errorf("expected dimension_key 'service', got %q", optsCfg.DimensionKey)
+	}
+	if len(opts.FilterValues) != 1 || opts.FilterValues[0] != "api" {
+		t.Errorf("expected filter_values [api], got %v", opts.FilterValues)
+	}
+}
+
+func TestResolveTarget_TargetIsAlsoDimensionValue(t *testing.T) {
+	// Edge case: "terraform" is both a dimension name AND a value of service
+	raw := RawConfig{
+		"service":     map[string]any{"api": nil, "terraform": nil},
+		"environment": map[string]any{"dev": nil, "prod": nil},
+		"terraform":   map[string]any{"infra": nil},
+	}
+	optsCfg := OptionsConfig{DimensionKey: "service"}
+	opts := Options{FilterKey: "service", FilterValues: []string{"terraform"}}
+
+	ResolveTarget(raw, &optsCfg, &opts, "")
+
+	// "terraform" is a value of the current dimension_key, so treat as value filter
+	if optsCfg.DimensionKey != "service" {
+		t.Errorf("expected dimension_key 'service', got %q", optsCfg.DimensionKey)
+	}
+	if len(opts.FilterValues) != 1 || opts.FilterValues[0] != "terraform" {
+		t.Errorf("expected filter_values [terraform], got %v", opts.FilterValues)
+	}
+}
+
+func TestResolveTarget_ArrayDimension(t *testing.T) {
+	raw := RawConfig{
+		"service":     []any{"api", "frontend"},
+		"environment": map[string]any{"dev": nil, "prod": nil},
+		"terraform":   map[string]any{"infra": nil},
+	}
+	optsCfg := OptionsConfig{DimensionKey: "service"}
+	opts := Options{FilterKey: "service", FilterValues: []string{"terraform"}}
+
+	ResolveTarget(raw, &optsCfg, &opts, "")
+
+	if optsCfg.DimensionKey != "terraform" {
+		t.Errorf("expected dimension_key 'terraform', got %q", optsCfg.DimensionKey)
+	}
+	if _, ok := raw["service"]; ok {
+		t.Error("service dimension should have been removed")
+	}
+}

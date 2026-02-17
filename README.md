@@ -165,7 +165,8 @@ jobs:
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
 | `config_path` | Path to the configuration file (JSON or YAML) | No | `.github/matrix-config.json` |
-| `target` | Filter by dimension_key value(s). Comma-separated for multiple (e.g. `api,frontend`). | No | |
+| `dimension_key` | Override the `dimension_key` from config. Switches the primary dimension and removes the config dimension from the matrix. | No | |
+| `target` | Filter by dimension_key value(s), or switch dimension (see [Dimension Selection](#dimension-selection)). | No | |
 | `environment` | Filter environments. Comma-separated for multiple (e.g. `dev,prod`) | No | |
 | `exclude` | JSON array of patterns to exclude (e.g. `[{"service":"shared","environment":"dev"}]`) | No | |
 | `include` | JSON array of entries to append (e.g. `[{"service":"shared"}]`) | No | |
@@ -460,6 +461,44 @@ jobs:
 ```
 
 When triggered manually with `environment: prod`, only prod entries are included. When left empty, all environments are included.
+
+### Dimension Selection
+
+When your config defines multiple primary dimensions (e.g. `service` and `terraform`), you can select which dimension to use from the workflow level without changing the config file. This is useful when different workflows operate on different dimensions of the same config.
+
+There are two ways to select a dimension:
+
+**1. Explicit `dimension_key` input** — directly overrides the config's `dimension_key`. The config's original dimension is removed from the cross-product:
+
+```yaml
+- uses: DND-IT/action-config@v3
+  with:
+    dimension_key: terraform  # switch to terraform dimension, remove service
+```
+
+**2. `target` shorthand** — if `target` is a single value that matches a dimension name (and is NOT a value of the current `dimension_key`), it automatically switches dimensions:
+
+```yaml
+- uses: DND-IT/action-config@v3
+  with:
+    target: terraform  # auto-detects as dimension name → same as dimension_key: terraform
+```
+
+**Combined: select dimension + filter within it:**
+
+```yaml
+- uses: DND-IT/action-config@v3
+  with:
+    dimension_key: terraform
+    target: infra              # filter terraform=infra
+    environment: dev           # also filter environment=dev
+```
+
+**Resolution order:**
+
+1. If `dimension_key` input is provided and differs from config → override, remove old dimension
+2. Else if `target` is a single value matching a dimension name (and NOT a value of the current `dimension_key`) → same switch
+3. Otherwise → `target` filters values within the current `dimension_key` (default behavior)
 
 ### Running Jobs Sequentially
 
