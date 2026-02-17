@@ -1,0 +1,18 @@
+{
+  "global": {
+    "dimension_key": "service",
+    "aws_region": "us-east-1"
+  },
+  "environment": {
+    "dev": {
+      "aws_account_id": "111111111111"
+    },
+    "prod": {
+      "aws_account_id": "222222222222"
+    }
+  },
+  "service": {
+    "api": null,
+    "frontend": null
+  }
+}

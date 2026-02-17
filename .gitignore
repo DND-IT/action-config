@@ -8,3 +8,7 @@
 # OS
 .DS_Store
 Thumbs.db
+
+# Go
+/action-config
+coverage.out

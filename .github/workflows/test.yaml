@@ -1,131 +1,211 @@
-name: Test Action
+name: test
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
+permissions:
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
-  unit-tests:
+  lint:
     runs-on: ubuntu-latest
-    name: Unit Tests
+    name: lint
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install yq
-        run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-
-      - name: Run unit tests
-        run: ./tests/test.sh
-
-  test-json-config:
-    runs-on: ubuntu-latest
-    name: Test with JSON Config
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Test action with JSON
-        id: json-test
-        uses: ./
+      - uses: actions/setup-go@v5
         with:
-          config-path: 'tests/valid-list-config.json'
+          go-version: "1.23"
 
-      - name: Verify JSON output
-        run: |
-          echo "Matrix output: ${{ steps.json-test.outputs.matrix }}"
-          echo '${{ steps.json-test.outputs.matrix }}' | jq '.'
-          # 2 stacks × 2 environments = 4 items
-          COUNT=$(echo '${{ steps.json-test.outputs.matrix }}' | jq '. | length')
-          if [ "$COUNT" -ne 4 ]; then
-            echo "Expected 4 items, got $COUNT"
-            exit 1
-          fi
-          echo "✓ JSON test passed"
-
-  test-yaml-config:
-    runs-on: ubuntu-latest
-    name: Test with YAML Config
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install yq
-        run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-
-      - name: Test action with YAML
-        id: yaml-test
-        uses: ./
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
         with:
-          config-path: 'tests/valid-list-config.yml'
+          version: latest
 
-      - name: Verify YAML output
-        run: |
-          echo "Matrix output: ${{ steps.yaml-test.outputs.matrix }}"
-          echo '${{ steps.yaml-test.outputs.matrix }}' | jq '.'
-          # 2 stacks × 2 environments = 4 items
-          COUNT=$(echo '${{ steps.yaml-test.outputs.matrix }}' | jq '. | length')
-          if [ "$COUNT" -ne 4 ]; then
-            echo "Expected 4 items, got $COUNT"
-            exit 1
-          fi
-          echo "✓ YAML test passed"
-
-  test-invalid-config:
+  test:
     runs-on: ubuntu-latest
-    name: Test Invalid Config Handling
+    name: test
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Test action with invalid JSON (should fail)
-        id: invalid-test
-        uses: ./
-        continue-on-error: true
+      - uses: actions/setup-go@v5
         with:
-          config-path: 'tests/invalid-config.json'
+          go-version: "1.23"
 
-      - name: Verify failure
+      - name: run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
+
+      - name: check coverage
         run: |
-          if [ "${{ steps.invalid-test.outcome }}" = "success" ]; then
-            echo "✗ Expected action to fail with invalid config"
-            exit 1
-          fi
-          echo "✓ Invalid config correctly rejected"
+          go tool cover -func=coverage.out | tail -1
 
-  test-matrix-usage:
+  integration:
     runs-on: ubuntu-latest
-    name: Test Matrix Usage
+    name: integration
+    needs: [lint, test]
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      matrix-json: ${{ steps.json.outputs.matrix }}
+      matrix-yaml: ${{ steps.yaml.outputs.matrix }}
+      matrix-filtered: ${{ steps.filtered.outputs.matrix }}
+      matrix-exclude: ${{ steps.exclude.outputs.matrix }}
+      matrix-include: ${{ steps.include.outputs.matrix }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Generate matrix
-        id: set-matrix
-        uses: ./
+      - uses: actions/setup-go@v5
         with:
-          config-path: 'tests/valid-list-config.json'
+          go-version: "1.23"
+
+      - name: build binary
+        run: go build -o action-config ./cmd/action-config
+
+      - name: test json config
+        id: json
+        run: |
+          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
+            ./action-config
+
+      - name: test yaml config
+        id: yaml
+        run: |
+          INPUT_CONFIG_PATH=testdata/valid-list-config.yml \
+            ./action-config
+
+      - name: test invalid config (should fail)
+        run: |
+          if INPUT_CONFIG_PATH=testdata/invalid-config.json ./action-config 2>&1; then
+            echo "Expected action to fail with invalid config"
+            exit 1
+          fi
+          echo "Invalid config correctly rejected"
+
+      - name: test target filter
+        id: filtered
+        run: |
+          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
+          INPUT_TARGET=api \
+            ./action-config
+
+      - name: test environment filter
+        run: |
+          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
+          INPUT_ENVIRONMENT=dev \
+            ./action-config
+
+      - name: test input exclude
+        id: exclude
+        run: |
+          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
+          INPUT_EXCLUDE='[{"service":"api","environment":"dev"}]' \
+            ./action-config
+
+      - name: test input include
+        id: include
+        run: |
+          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
+          INPUT_INCLUDE='[{"service":"shared","environment":"all"}]' \
+            ./action-config
+
+      - name: test example config
+        run: |
+          INPUT_CONFIG_PATH=.github/matrix-config.example.json \
+            ./action-config
+
+  verify-counts:
+    runs-on: ubuntu-latest
+    name: verify counts
+    needs: integration
+    steps:
+      - name: verify matrix sizes
+        run: |
+          check() {
+            local name=$1 expected=$2 matrix=$3
+            count=$(echo "$matrix" | jq '. | length')
+            echo "$name: $count entries (expected $expected)"
+            echo "$matrix" | jq '.'
+            echo "---"
+            if [ "$count" -ne "$expected" ]; then
+              echo "FAIL: $name expected $expected, got $count"
+              exit 1
+            fi
+          }
+
+          check "json"     4 '${{ needs.integration.outputs.matrix-json }}'
+          check "yaml"     4 '${{ needs.integration.outputs.matrix-yaml }}'
+          check "filtered" 2 '${{ needs.integration.outputs.matrix-filtered }}'
+          check "exclude"  3 '${{ needs.integration.outputs.matrix-exclude }}'
+          check "include"  5 '${{ needs.integration.outputs.matrix-include }}'
+
+  docker:
+    runs-on: ubuntu-latest
+    name: docker
+    needs: [lint, test]
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: log in to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: set image tag
+        id: tag
+        run: echo "value=${{ env.REGISTRY }}/${IMAGE_NAME,,}:pr-${{ github.event.number }}" >> "$GITHUB_OUTPUT"
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+
+      - name: build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.tag.outputs.value }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  cleanup:
+    runs-on: ubuntu-latest
+    name: cleanup pr image
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    steps:
+      - name: delete pr image
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: action-config
+          package-type: container
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tags: pr-${{ github.event.number }}
 
   verify-matrix:
-    needs: test-matrix-usage
+    runs-on: ubuntu-latest
+    name: "matrix: ${{ matrix.service }}/${{ matrix.environment }}"
+    needs: integration
     strategy:
       matrix:
-        include: ${{ fromJson(needs.test-matrix-usage.outputs.matrix) }}
-    runs-on: ubuntu-latest
-    name: Verify Matrix - ${{ matrix.environment }}
+        include: ${{ fromJson(needs.integration.outputs.matrix-json) }}
     steps:
-      - name: Display matrix values
+      - name: show context
         run: |
-          echo "Stack: ${{ matrix.stack }}"
-          echo "Environment: ${{ matrix.environment }}"
-          echo "AWS Account ID: ${{ matrix.aws_account_id }}"
-          echo "✓ Matrix job executed successfully"
+          echo "service:        ${{ matrix.service }}"
+          echo "environment:    ${{ matrix.environment }}"
+          echo "aws_account_id: ${{ matrix.aws_account_id }}"
+          echo "directory:      ${{ matrix.directory }}"
+          echo ""
+          echo "full matrix context:"
+          echo '${{ toJson(matrix) }}' | jq '.'

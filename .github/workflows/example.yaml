@@ -4,22 +4,26 @@ on:
   pull_request:
 
 jobs:
-  # Job to read the configuration and output the matrix
   setup:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Read matrix configuration
-        id: set-matrix
-        uses: DND-IT/action-config@v1
+      - uses: actions/setup-go@v5
         with:
-          config-path: '.github/matrix-config.example.json'
+          go-version: "1.23"
 
-  # Job that uses the dynamic matrix
+      - name: build action-config
+        run: go build -o action-config ./cmd/action-config
+
+      - name: read matrix configuration
+        id: set-matrix
+        run: |
+          INPUT_CONFIG_PATH=.github/matrix-config.example.json \
+            ./action-config
+
   plan:
     needs: setup
     strategy:
@@ -29,20 +33,24 @@ jobs:
 
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
-      - name: Display matrix values
+      - name: display matrix values
         run: |
-          echo "Stack: ${{ matrix.stack }}"
+          echo "Service: ${{ matrix.service }}"
           echo "Environment: ${{ matrix.environment }}"
+          echo "Directory: ${{ matrix.directory }}"
           echo "AWS Account ID: ${{ matrix.aws_account_id }}"
+          echo "AWS Region: ${{ matrix.aws_region }}"
+          echo ""
+          echo "full context:"
+          echo '${{ toJson(matrix) }}' | jq '.'
 
       # Your actual terraform plan workflow
       # - name: Run Terraform Plan
       #   uses: DND-IT/github-workflows/.github/workflows/tf-plan.yaml@v3
       #   with:
-      #     tf_dir: deploy/${{ matrix.stack }}
-      #     tf_backend_config_files: deploy/${{ matrix.stack }}/environments/${{ matrix.environment }}.s3.tfbackend
-      #     tf_var_files: deploy/${{ matrix.stack }}/environments/${{ matrix.environment }}.tfvars
+      #     tf_dir: ${{ matrix.directory }}
+      #     tf_backend_config_files: ${{ matrix.directory }}/environments/${{ matrix.environment }}.s3.tfbackend
+      #     tf_var_files: ${{ matrix.directory }}/environments/${{ matrix.environment }}.tfvars
       #     aws_oidc_role_arn: arn:aws:iam::${{ matrix.aws_account_id }}:role/cicd-iac

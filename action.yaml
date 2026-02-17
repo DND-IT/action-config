@@ -3,210 +3,40 @@ description: 'Github Action for reading configuration files and generating workf
 author: 'group:default/dai'
 
 inputs:
-  config-path:
+  config_path:
     description: 'Path to the configuration file (JSON or YAML)'
     required: true
     default: '.github/matrix-config.json'
-  stack:
-    description: 'Filter to specific stack(s). Comma-separated for multiple (e.g. "api,frontend")'
+  target:
+    description: 'Filter by dimension_key value(s). Comma-separated for multiple (e.g. "api,frontend").'
     required: false
     default: ''
   environment:
-    description: 'Filter to specific environment(s). Comma-separated for multiple (e.g. "dev,prod")'
+    description: 'Filter environments. Comma-separated for multiple (e.g. "dev,prod")'
     required: false
     default: ''
   exclude:
-    description: 'JSON array of patterns to exclude from the matrix (e.g. [{"stack":"shared","environment":"dev"}])'
+    description: 'JSON array of patterns to exclude from the matrix (e.g. [{"service":"shared","environment":"dev"}])'
     required: false
     default: ''
   include:
-    description: 'JSON array of entries to append to the matrix (e.g. [{"stack":"shared"}])'
+    description: 'JSON array of entries to append to the matrix (e.g. [{"service":"shared"}])'
     required: false
     default: ''
+  change_detection:
+    description: 'When true, use git to detect changed files and filter the matrix to only entries with changes. Uses base_dir from global to map file paths. Requires actions/checkout with fetch-depth: 0.'
+    required: false
+    default: 'false'
 
 outputs:
   matrix:
     description: 'JSON string containing the matrix configuration'
-    value: ${{ steps.read-config.outputs.matrix }}
+  changes_detected:
+    description: 'Whether any entries have changes (true/false). Only meaningful when change_detection is true.'
 
 runs:
-  using: 'composite'
-  steps:
-    - name: Read configuration file
-      id: read-config
-      shell: bash
-      run: |
-        CONFIG_FILE="${{ inputs.config-path }}"
-
-        if [ ! -f "$CONFIG_FILE" ]; then
-          echo "::error::Configuration file not found: $CONFIG_FILE"
-          exit 1
-        fi
-
-        # Detect file type and read accordingly
-        if [[ "$CONFIG_FILE" == *.json ]]; then
-          # Validate and minify JSON
-          if ! CONFIG=$(jq -c '.' "$CONFIG_FILE" 2>&1); then
-            echo "::error::Invalid JSON in $CONFIG_FILE: $CONFIG"
-            exit 1
-          fi
-        elif [[ "$CONFIG_FILE" == *.yaml ]] || [[ "$CONFIG_FILE" == *.yml ]]; then
-          # Convert YAML to JSON
-          if ! command -v yq &> /dev/null; then
-            echo "::error::yq is required to parse YAML files. Please install it first."
-            exit 1
-          fi
-          if ! CONFIG=$(yq -o=json -I=0 '.' "$CONFIG_FILE" 2>&1); then
-            echo "::error::Invalid YAML in $CONFIG_FILE: $CONFIG"
-            exit 1
-          fi
-        else
-          echo "::error::Unsupported file type. Use .json, .yaml, or .yml"
-          exit 1
-        fi
-
-        # Config must be an object
-        if ! echo "$CONFIG" | jq -e 'type == "object"' > /dev/null 2>&1; then
-          echo "::error::Configuration must be an object"
-          exit 1
-        fi
-
-        # Expand lists into Cartesian product matrix
-        MATRIX=$(echo "$CONFIG" | jq -c '
-          # Helper function to singularize common plural keys
-          def singularize:
-            if endswith("ies") then
-              .[:-3] + "y"
-            elif endswith("es") then
-              .[:-2]
-            elif endswith("s") then
-              .[:-1]
-            else
-              .
-            end;
-
-          . as $root |
-
-          # Helper: check if an item matches all key/value pairs in a pattern
-          def matches(pattern):
-            . as $item |
-            all(pattern | to_entries[]; .key as $k | .value as $v | $item[$k] == $v);
-
-          # Derive environment dimension from config keys if "config" exists
-          (if $root.config then
-            [{key: "environments", value: ($root.config | keys)}]
-          else
-            []
-          end) as $config_dimensions |
-
-          # Extract explicit dimension arrays (exclude reserved keys)
-          (to_entries | map(select(
-            (.value | type == "array") and
-            (.key != "exclude") and
-            (.key != "include")
-          ))) as $explicit_dimensions |
-
-          # Merge: explicit dimensions + config-derived (config-derived only adds if not already present)
-          ($explicit_dimensions | map(.key)) as $explicit_keys |
-          ($explicit_dimensions + ($config_dimensions | map(select(.key as $k | $explicit_keys | index($k) | not)))) as $dimensions |
-
-          # Get base config (non-array values, excluding reserved keys)
-          ($root | to_entries | map(select(
-            (.value | type != "array") and
-            (.key != "config") and
-            (.key != "exclude") and
-            (.key != "include")
-          )) | from_entries) as $base_config |
-
-          # Build cartesian product
-          (if ($dimensions | length) == 0 then
-            [$root | del(.config) | del(.exclude) | del(.include)]
-          else
-            $dimensions |
-            reduce .[] as $dim (
-              [{}];
-              [.[] as $item |
-               $dim.value[] as $val |
-               $item + {($dim.key | singularize): $val}]
-            ) |
-
-            # For each combination, merge with corresponding config
-            map(. as $combo |
-              $base_config |
-              . + $combo |
-              if $root.config then
-                . + (
-                  $combo | to_entries |
-                  map($root.config[.value] // {}) |
-                  add // {}
-                )
-              else . end
-            )
-          end) |
-
-          # Apply excludes
-          if $root.exclude then
-            map(select(. as $item |
-              all($root.exclude[]; . as $pattern | ($item | matches($pattern)) | not)
-            ))
-          else . end |
-
-          # Append includes
-          if $root.include then . + $root.include else . end
-        ')
-
-        if [ $? -ne 0 ]; then
-          echo "::error::Failed to expand configuration"
-          exit 1
-        fi
-
-        # Apply input-level stack filter
-        STACK_FILTER="${{ inputs.stack }}"
-        if [ -n "$STACK_FILTER" ]; then
-          MATRIX=$(echo "$MATRIX" | jq -c --arg stacks "$STACK_FILTER" '
-            ($stacks | split(",") | map(gsub("^\\s+|\\s+$"; ""))) as $allowed |
-            map(select(.stack as $s | $allowed | index($s)))
-          ')
-          echo "::notice::Filtered by stack: $STACK_FILTER"
-        fi
-
-        # Apply input-level environment filter
-        ENV_FILTER="${{ inputs.environment }}"
-        if [ -n "$ENV_FILTER" ]; then
-          MATRIX=$(echo "$MATRIX" | jq -c --arg envs "$ENV_FILTER" '
-            ($envs | split(",") | map(gsub("^\\s+|\\s+$"; ""))) as $allowed |
-            map(select(.environment as $e | $allowed | index($e)))
-          ')
-          echo "::notice::Filtered by environment: $ENV_FILTER"
-        fi
-
-        # Apply input-level exclude
-        INPUT_EXCLUDE='${{ inputs.exclude }}'
-        if [ -n "$INPUT_EXCLUDE" ]; then
-          MATRIX=$(echo "$MATRIX" | jq -c --argjson exc "$INPUT_EXCLUDE" '
-            def matches(pattern):
-              . as $item |
-              all(pattern | to_entries[]; .key as $k | .value as $v | $item[$k] == $v);
-            map(select(. as $item |
-              all($exc[]; . as $pattern | ($item | matches($pattern)) | not)
-            ))
-          ')
-          echo "::notice::Applied input exclude filter"
-        fi
-
-        # Apply input-level include
-        INPUT_INCLUDE='${{ inputs.include }}'
-        if [ -n "$INPUT_INCLUDE" ]; then
-          MATRIX=$(echo "$MATRIX" | jq -c --argjson inc "$INPUT_INCLUDE" '. + $inc')
-          echo "::notice::Applied input include filter"
-        fi
-
-        # Output the matrix
-        echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-
-        # Pretty print for logs
-        echo "::notice::Matrix configuration loaded successfully:"
-        echo "$MATRIX" | jq '.'
+  using: 'docker'
+  image: 'docker://ghcr.io/dnd-it/action-config:1.2.0' # x-release-please-version
 
 branding:
   icon: 'zap'
