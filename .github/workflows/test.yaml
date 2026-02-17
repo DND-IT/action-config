@@ -19,7 +19,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     name: lint
-    if: github.event.action != 'closed'
+    if: github.event.action != 'closed' && !startsWith(github.head_ref, 'release-please--')
     steps:
       - uses: actions/checkout@v4
 
@@ -35,7 +35,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     name: test
-    if: github.event.action != 'closed'
+    if: github.event.action != 'closed' && !startsWith(github.head_ref, 'release-please--')
     steps:
       - uses: actions/checkout@v4
 

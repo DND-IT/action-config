@@ -16,6 +16,15 @@ import (
 func DetectChangedFiles() ([]string, error) {
 	eventName := os.Getenv("GITHUB_EVENT_NAME")
 
+	workspace := os.Getenv("GITHUB_WORKSPACE")
+	if workspace == "" {
+		workspace = "."
+	}
+
+	// Mark workspace as safe to avoid "dubious ownership" errors in containers.
+	safe := exec.Command("git", "config", "--global", "--add", "safe.directory", workspace)
+	_ = safe.Run()
+
 	var args []string
 	switch eventName {
 	case "pull_request", "pull_request_target":
@@ -29,15 +38,6 @@ func DetectChangedFiles() ([]string, error) {
 	default:
 		return nil, nil
 	}
-
-	workspace := os.Getenv("GITHUB_WORKSPACE")
-	if workspace == "" {
-		workspace = "."
-	}
-
-	// Mark workspace as safe to avoid "dubious ownership" errors in containers.
-	safe := exec.Command("git", "config", "--global", "--add", "safe.directory", workspace)
-	_ = safe.Run()
 
 	cmd := exec.Command("git", args...)
 	cmd.Dir = workspace
