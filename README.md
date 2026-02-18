@@ -359,6 +359,59 @@ The dimension name is fully configurable. You can use `service`, `app`, `compone
 
 This produces entries like `{"app": "web", "environment": "dev", "directory": "apps/web", "cluster": "dev-cluster"}`.
 
+### Multi-Region Deployments
+
+Add a `region` dimension to deploy each service across multiple AWS regions:
+
+```yaml
+global:
+  dimension_key: service
+  base_dir: deploy
+
+environment:
+  dev:
+    aws_account_id: "111111111111"
+  prod:
+    aws_account_id: "222222222222"
+
+service:
+  api:
+    port: "8080"
+  frontend:
+
+region:
+  - eu-central-1
+  - us-east-1
+```
+
+This produces 8 entries (2 services × 2 environments × 2 regions). Each entry includes a `region` field you can use in your workflow:
+
+```yaml
+steps:
+  - name: Deploy
+    run: |
+      aws configure set region ${{ matrix.region }}
+      # deploy ${{ matrix.service }} to ${{ matrix.environment }} in ${{ matrix.region }}
+```
+
+To set region-specific config, use a map dimension instead of an array:
+
+```yaml
+region:
+  eu-central-1:
+    aws_vpc_id: vpc-abc123
+  us-east-1:
+    aws_vpc_id: vpc-def456
+```
+
+You can also combine regions with `exclude` to skip certain combinations (e.g. frontend only in eu-central-1):
+
+```yaml
+exclude:
+  - service: frontend
+    region: us-east-1
+```
+
 ### Exclude
 
 Use `exclude` to remove specific combinations from the cartesian product:
