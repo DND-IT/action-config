@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [2.0.2](https://github.com/DND-IT/action-config/compare/v2.0.1...v2.0.2) (2026-02-18)
+
+
+### Bug Fixes
+
+* change order of safe directory function ([cde15ff](https://github.com/DND-IT/action-config/commit/cde15ffd7af09f20bd348cb8a791daeb384d27ae))
+* support dimension selection via dimension_key input and target shorthand ([f4220b7](https://github.com/DND-IT/action-config/commit/f4220b7d01264d410dfcc76f63b2c8083aabb442))
+
 ## [2.0.1](https://github.com/DND-IT/action-config/compare/v2.0.0...v2.0.1) (2026-02-17)
 
 
