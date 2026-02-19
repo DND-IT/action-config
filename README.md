@@ -180,6 +180,60 @@ The `target` and `environment` inputs are convenience filters applied **after** 
 |--------|-------------|
 | `matrix` | JSON string containing the matrix configuration |
 | `changes_detected` | Whether any entries have changes (`true`/`false`). Only meaningful when `change_detection` is `true`. |
+| `config` | JSON object keyed by dimension values for direct field access via `fromJson()` (see [Config Output](#config-output)) |
+| *(flat keys)* | When the matrix contains exactly one entry, each of its fields is also emitted as a flat output (e.g. `aws_region`, `directory`). |
+
+### Config Output
+
+The `config` output is a nested JSON object indexed by dimension values (sorted alphabetically by dimension key). This lets you look up any entry's fields directly without `jq`:
+
+```yaml
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.config.outputs.matrix }}
+      config: ${{ steps.config.outputs.config }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: config
+        uses: DND-IT/action-config@v3
+
+  deploy:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      # Access any entry's fields by dimension values:
+      - run: echo "Dev API directory is ${{ fromJson(needs.setup.outputs.config).dev.api.directory }}"
+      - run: echo "Prod account is ${{ fromJson(needs.setup.outputs.config).prod.api.aws_account_id }}"
+```
+
+### Flat Outputs (Single Entry)
+
+When the matrix has exactly one entry (e.g. after filtering to a single service + environment), each field is also emitted as a flat output for convenience:
+
+```yaml
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.cfg.outputs.matrix }}
+      aws_region: ${{ steps.cfg.outputs.aws_region }}
+      directory: ${{ steps.cfg.outputs.directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: cfg
+        uses: DND-IT/action-config@v3
+        with:
+          target: api
+          environment: dev
+
+  deploy:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Region is ${{ needs.setup.outputs.aws_region }}"
+```
 
 ## Configuration Format
 

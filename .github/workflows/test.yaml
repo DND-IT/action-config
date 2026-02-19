@@ -62,6 +62,9 @@ jobs:
       matrix-include: ${{ steps.include.outputs.matrix }}
       matrix-dimkey: ${{ steps.dimkey.outputs.matrix }}
       matrix-target-dim: ${{ steps.target-dim.outputs.matrix }}
+      config-json: ${{ steps.json.outputs.config }}
+      single-aws-region: ${{ steps.single.outputs.aws_region }}
+      single-directory: ${{ steps.single.outputs.directory }}
     steps:
       - uses: actions/checkout@v4
 
@@ -133,6 +136,14 @@ jobs:
           INPUT_TARGET=terraform \
             ./action-config
 
+      - name: test single entry (flat outputs)
+        id: single
+        run: |
+          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
+          INPUT_TARGET=api \
+          INPUT_ENVIRONMENT=dev \
+            ./action-config
+
       - name: test example config
         run: |
           INPUT_CONFIG_PATH=.github/matrix-config.example.json \
@@ -164,6 +175,37 @@ jobs:
           check "include"    5 '${{ needs.integration.outputs.matrix-include }}'
           check "dimkey"     2 '${{ needs.integration.outputs.matrix-dimkey }}'
           check "target-dim" 2 '${{ needs.integration.outputs.matrix-target-dim }}'
+
+          # Verify config blob (nested access by dimension values)
+          CONFIG='${{ needs.integration.outputs.config-json }}'
+          DEV_API_DIR=$(echo "$CONFIG" | jq -r '.dev.api.infra.directory')
+          echo "config.dev.api.infra.directory: ${DEV_API_DIR}"
+          if [ "$DEV_API_DIR" != "api" ]; then
+            echo "FAIL: expected config.dev.api.infra.directory=api, got ${DEV_API_DIR}"
+            exit 1
+          fi
+          PROD_ACCOUNT=$(echo "$CONFIG" | jq -r '.prod.frontend.infra.aws_account_id')
+          echo "config.prod.frontend.infra.aws_account_id: ${PROD_ACCOUNT}"
+          if [ "$PROD_ACCOUNT" != "222222222222" ]; then
+            echo "FAIL: expected config.prod.frontend.infra.aws_account_id=222222222222, got ${PROD_ACCOUNT}"
+            exit 1
+          fi
+          echo "Config blob verified"
+
+          # Verify flat outputs from single-entry result
+          SINGLE_REGION='${{ needs.integration.outputs.single-aws-region }}'
+          echo "single aws_region: ${SINGLE_REGION}"
+          if [ "$SINGLE_REGION" != "us-east-1" ]; then
+            echo "FAIL: expected single aws_region=us-east-1, got ${SINGLE_REGION}"
+            exit 1
+          fi
+          SINGLE_DIR='${{ needs.integration.outputs.single-directory }}'
+          echo "single directory: ${SINGLE_DIR}"
+          if [ "$SINGLE_DIR" != "api" ]; then
+            echo "FAIL: expected single directory=api, got ${SINGLE_DIR}"
+            exit 1
+          fi
+          echo "Flat outputs verified"
 
   docker:
     runs-on: ubuntu-latest
