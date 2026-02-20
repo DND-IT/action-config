@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/dnd-it/action-config/internal/expander"
 	gitdetect "github.com/dnd-it/action-config/internal/git"
@@ -95,6 +96,33 @@ func run() error {
 
 	outputs.SetOutput("matrix", string(matrixJSON))
 
+	// Emit a nested "config" JSON blob indexed by dimension values,
+	// so users can access fields via fromJson: e.g. fromJson(steps.id.outputs.config).api.dev.directory
+	if len(entries) > 0 {
+		dimKeys := make([]string, 0, len(dimensions))
+		for k := range dimensions {
+			dimKeys = append(dimKeys, k)
+		}
+		sort.Strings(dimKeys)
+
+		configBlob := buildConfigBlob(entries, dimKeys)
+		configJSON, err := json.Marshal(configBlob)
+		if err == nil {
+			outputs.SetOutput("config", string(configJSON))
+		}
+
+		// When the matrix has a single entry, also emit flat outputs for convenience.
+		if len(entries) == 1 {
+			reserved := map[string]bool{"matrix": true, "changes_detected": true, "config": true}
+			for k, v := range entries[0] {
+				if reserved[k] {
+					continue
+				}
+				outputs.SetOutput(k, fmt.Sprintf("%v", v))
+			}
+		}
+	}
+
 	if cfg.ChangeDetection {
 		if len(entries) > 0 {
 			outputs.SetOutput("changes_detected", "true")
@@ -125,4 +153,29 @@ func run() error {
 	}
 
 	return nil
+}
+
+// buildConfigBlob builds a nested map indexed by dimension values.
+// For dimensions [environment, service] and an entry {environment:dev, service:api, directory:deploy/api},
+// the result is {"dev": {"api": {"directory": "deploy/api", ...}}}.
+func buildConfigBlob(entries []expander.MatrixEntry, dimKeys []string) map[string]any {
+	root := make(map[string]any)
+	for _, entry := range entries {
+		current := root
+		for i, dk := range dimKeys {
+			val := fmt.Sprintf("%v", entry[dk])
+			if i == len(dimKeys)-1 {
+				// Leaf: store the full entry
+				current[val] = map[string]any(entry)
+			} else {
+				next, ok := current[val]
+				if !ok {
+					next = make(map[string]any)
+					current[val] = next
+				}
+				current = next.(map[string]any)
+			}
+		}
+	}
+	return root
 }

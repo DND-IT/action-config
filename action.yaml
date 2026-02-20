@@ -37,6 +37,10 @@ outputs:
     description: 'JSON string containing the matrix configuration'
   changes_detected:
     description: 'Whether any entries have changes (true/false). Only meaningful when change_detection is true.'
+  config:
+    description: 'JSON object keyed by dimension values for direct field access via fromJson(). E.g. fromJson(steps.<id>.outputs.config).dev.api.directory'
+  # When the matrix contains exactly one entry, each of its fields is also emitted as a flat output.
+  # E.g. steps.<id>.outputs.aws_region, steps.<id>.outputs.directory, etc.
 
 runs:
   using: 'docker'
