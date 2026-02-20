@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [2.1.1](https://github.com/DND-IT/action-config/compare/v2.1.0...v2.1.1) (2026-02-20)
+
+
+### Bug Fixes
+
+* emit flat outputs for fields uniform across all matrix entries ([#11](https://github.com/DND-IT/action-config/issues/11)) ([f2f23bf](https://github.com/DND-IT/action-config/commit/f2f23bf9339b5d8c46261a00cdc69bb449c2c879))
+
 ## [2.1.0](https://github.com/DND-IT/action-config/compare/v2.0.2...v2.1.0) (2026-02-20)
 
 
