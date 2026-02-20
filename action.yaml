@@ -46,7 +46,7 @@ outputs:
 
 runs:
   using: 'docker'
-  image: 'docker://ghcr.io/dnd-it/action-config:2.0.2' # x-release-please-version
+  image: 'docker://ghcr.io/dnd-it/action-config:2.1.0' # x-release-please-version
 
 branding:
   icon: 'zap'

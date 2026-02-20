@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [2.1.0](https://github.com/DND-IT/action-config/compare/v2.0.2...v2.1.0) (2026-02-20)
+
+
+### Features
+
+* add config blob, length output, and fix edge cases ([ec43310](https://github.com/DND-IT/action-config/commit/ec433103dd8231b49efe1de4986df724f737c109))
+* add dynamic outputs ([#9](https://github.com/DND-IT/action-config/issues/9)) ([3cccabb](https://github.com/DND-IT/action-config/commit/3cccabb982905c735443d68f5cc0b8029e3fa4f2))
+
 ## [2.0.2](https://github.com/DND-IT/action-config/compare/v2.0.1...v2.0.2) (2026-02-18)
 
 
