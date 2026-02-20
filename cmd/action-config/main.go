@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 
 	"github.com/dnd-it/action-config/internal/expander"
 	gitdetect "github.com/dnd-it/action-config/internal/git"
@@ -59,6 +60,8 @@ func run() error {
 
 				if len(changedValues) == 0 {
 					outputs.SetOutput("matrix", "[]")
+					outputs.SetOutput("config", "{}")
+					outputs.SetOutput("length", "0")
 					outputs.SetOutput("changes_detected", "false")
 					outputs.LogNotice("No entries with changes, matrix is empty")
 					return nil
@@ -95,6 +98,7 @@ func run() error {
 	}
 
 	outputs.SetOutput("matrix", string(matrixJSON))
+	outputs.SetOutput("length", strconv.Itoa(len(entries)))
 
 	// Emit a nested "config" JSON blob indexed by dimension values,
 	// so users can access fields via fromJson: e.g. fromJson(steps.id.outputs.config).api.dev.directory
@@ -113,7 +117,7 @@ func run() error {
 
 		// When the matrix has a single entry, also emit flat outputs for convenience.
 		if len(entries) == 1 {
-			reserved := map[string]bool{"matrix": true, "changes_detected": true, "config": true}
+			reserved := map[string]bool{"matrix": true, "changes_detected": true, "config": true, "length": true}
 			for k, v := range entries[0] {
 				if reserved[k] {
 					continue
@@ -161,6 +165,18 @@ func run() error {
 func buildConfigBlob(entries []expander.MatrixEntry, dimKeys []string) map[string]any {
 	root := make(map[string]any)
 	for _, entry := range entries {
+		// Skip entries that don't have all dimension keys (e.g. from include).
+		skip := false
+		for _, dk := range dimKeys {
+			if _, ok := entry[dk]; !ok {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+
 		current := root
 		for i, dk := range dimKeys {
 			val := fmt.Sprintf("%v", entry[dk])

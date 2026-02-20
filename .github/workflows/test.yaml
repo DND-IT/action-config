@@ -63,8 +63,8 @@ jobs:
       matrix-dimkey: ${{ steps.dimkey.outputs.matrix }}
       matrix-target-dim: ${{ steps.target-dim.outputs.matrix }}
       config-json: ${{ steps.json.outputs.config }}
-      single-aws-region: ${{ steps.single.outputs.aws_region }}
-      single-directory: ${{ steps.single.outputs.directory }}
+      length-json: ${{ steps.json.outputs.length }}
+      length-filtered: ${{ steps.filtered.outputs.length }}
     steps:
       - uses: actions/checkout@v4
 
@@ -192,20 +192,20 @@ jobs:
           fi
           echo "Config blob verified"
 
-          # Verify flat outputs from single-entry result
-          SINGLE_REGION='${{ needs.integration.outputs.single-aws-region }}'
-          echo "single aws_region: ${SINGLE_REGION}"
-          if [ "$SINGLE_REGION" != "us-east-1" ]; then
-            echo "FAIL: expected single aws_region=us-east-1, got ${SINGLE_REGION}"
+          # Verify length outputs
+          LENGTH_JSON='${{ needs.integration.outputs.length-json }}'
+          echo "length-json: ${LENGTH_JSON}"
+          if [ "$LENGTH_JSON" != "4" ]; then
+            echo "FAIL: expected length-json=4, got ${LENGTH_JSON}"
             exit 1
           fi
-          SINGLE_DIR='${{ needs.integration.outputs.single-directory }}'
-          echo "single directory: ${SINGLE_DIR}"
-          if [ "$SINGLE_DIR" != "api" ]; then
-            echo "FAIL: expected single directory=api, got ${SINGLE_DIR}"
+          LENGTH_FILTERED='${{ needs.integration.outputs.length-filtered }}'
+          echo "length-filtered: ${LENGTH_FILTERED}"
+          if [ "$LENGTH_FILTERED" != "2" ]; then
+            echo "FAIL: expected length-filtered=2, got ${LENGTH_FILTERED}"
             exit 1
           fi
-          echo "Flat outputs verified"
+          echo "Length outputs verified"
 
   docker:
     runs-on: ubuntu-latest

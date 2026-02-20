@@ -39,6 +39,8 @@ outputs:
     description: 'Whether any entries have changes (true/false). Only meaningful when change_detection is true.'
   config:
     description: 'JSON object keyed by dimension values for direct field access via fromJson(). E.g. fromJson(steps.<id>.outputs.config).dev.api.directory'
+  length:
+    description: 'Number of entries in the matrix (e.g. "4"). Useful for conditional job execution: if: needs.setup.outputs.length > 0'
   # When the matrix contains exactly one entry, each of its fields is also emitted as a flat output.
   # E.g. steps.<id>.outputs.aws_region, steps.<id>.outputs.directory, etc.
 
