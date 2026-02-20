@@ -115,14 +115,25 @@ func run() error {
 			outputs.SetOutput("config", string(configJSON))
 		}
 
-		// When the matrix has a single entry, also emit flat outputs for convenience.
-		if len(entries) == 1 {
-			reserved := map[string]bool{"matrix": true, "changes_detected": true, "config": true, "length": true}
-			for k, v := range entries[0] {
-				if reserved[k] {
-					continue
+		// Emit flat outputs for fields that have the same value across all entries.
+		// This covers single-entry matrices (all fields emitted) and multi-entry
+		// matrices (only shared fields like directory, ecr_repository are emitted;
+		// fields that differ per entry like environment, aws_account_id are skipped).
+		reserved := map[string]bool{"matrix": true, "changes_detected": true, "config": true, "length": true}
+		for k, v := range entries[0] {
+			if reserved[k] {
+				continue
+			}
+			val := fmt.Sprintf("%v", v)
+			uniform := true
+			for _, entry := range entries[1:] {
+				if fmt.Sprintf("%v", entry[k]) != val {
+					uniform = false
+					break
 				}
-				outputs.SetOutput(k, fmt.Sprintf("%v", v))
+			}
+			if uniform {
+				outputs.SetOutput(k, val)
 			}
 		}
 	}
