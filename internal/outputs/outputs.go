@@ -10,6 +10,7 @@ import (
 
 // SetOutput writes a value to GITHUB_OUTPUT.
 func SetOutput(name, value string) {
+	fmt.Printf("::debug::output %s=%s\n", name, value)
 	outputFile := os.Getenv("GITHUB_OUTPUT")
 	if outputFile == "" {
 		fmt.Printf("::set-output name=%s::%s\n", name, value)
