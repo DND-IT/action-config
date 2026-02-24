@@ -296,11 +296,15 @@ func sortEntries(entries []MatrixEntry, keys []string) {
 }
 
 // addDirectoryField sets the "directory" field on each entry based on the
-// dimension_key value and base_dir.
+// dimension_key value and base_dir. When the dimension_key is not present
+// in an entry, it falls back to base_dir alone.
 func addDirectoryField(entries []MatrixEntry, optsCfg OptionsConfig) {
 	for _, entry := range entries {
 		val, ok := entry[optsCfg.DimensionKey]
 		if !ok {
+			if optsCfg.BaseDir != "" {
+				entry["directory"] = optsCfg.BaseDir
+			}
 			continue
 		}
 		strVal := fmt.Sprintf("%v", val)

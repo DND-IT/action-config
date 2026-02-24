@@ -54,7 +54,7 @@ A GitHub Action for centralized configuration management that enables you to def
 ]
 ```
 
-Dimensions are defined as top-level keys (maps or arrays). The `global` key holds shared settings and config values merged into every entry. Per-dimension-value configs (like `aws_account_id` per environment) are embedded directly in the dimension map. The `directory` field is automatically computed from `base_dir` and the primary dimension value.
+Dimensions are defined as top-level keys (maps or arrays). The `global` key holds shared settings and config values merged into every entry. Per-dimension-value configs (like `aws_account_id` per environment) are embedded directly in the dimension map. The `directory` field is automatically computed from `base_dir` and the primary dimension value. When the primary dimension is not present, `directory` falls back to `base_dir` alone.
 
 **Add a new service?** Just add a key to the `service` map — instantly get 3 more environments!
 **Add a new environment?** Just add its config block — all services automatically deploy there!
@@ -276,7 +276,7 @@ The `global` key holds action settings and shared config values:
 | Key | Description | Default |
 |-----|-------------|---------|
 | `dimension_key` | Name of the primary dimension key (used for filtering via `services` input and change detection) | `"service"` |
-| `base_dir` | Base directory for building the `directory` output field and mapping file paths for change detection | (empty) |
+| `base_dir` | Base directory for building the `directory` output field and mapping file paths for change detection. When the `dimension_key` is not present in an entry, `directory` is set to `base_dir` alone. | (empty) |
 | `sort_by` | Array of keys to sort the matrix entries by | `["environment"]` |
 
 Any other key in `global` is a config value merged into every matrix entry. For example, `aws_region: us-east-1` in `global` gives every entry that value unless overridden by a per-dimension-value config.
@@ -327,7 +327,7 @@ service:
 - Array dimensions have their items become dimension values
 - Per-value config objects in map dimensions are merged into matching entries
 - Non-array, non-map, non-reserved top-level values are copied to every matrix entry
-- A `directory` field is automatically added: `base_dir/value` (or just `value` if `base_dir` is not set)
+- A `directory` field is automatically added: `base_dir/value` (or just `value` if `base_dir` is not set). If the primary dimension key is absent from an entry, `directory` falls back to `base_dir`.
 - Result: 2 services x 3 environments = 6 matrix entries
 
 ### Shared Config Values
