@@ -35,17 +35,17 @@ func run() error {
 
 	optsCfg, dimensions := expander.ParseOptions(raw)
 
-	// Set the filter key from the config's dimension_key
-	opts.FilterKey = optsCfg.DimensionKey
+	// Set the filter key from the config's dimension
+	opts.FilterKey = optsCfg.Dimension
 
 	// Resolve dimension selection (explicit input or target shorthand)
-	expander.ResolveTarget(dimensions, &optsCfg, &opts, cfg.DimensionKey)
+	expander.ResolveTarget(dimensions, &optsCfg, &opts, cfg.Dimension)
 
 	// If change detection is enabled, detect changes via git and filter
 	if cfg.ChangeDetection {
-		knownValues := expander.ExtractDimensionValues(dimensions, optsCfg.DimensionKey)
+		knownValues := expander.ExtractDimensionValues(dimensions, optsCfg.Dimension)
 		if knownValues == nil {
-			outputs.LogNotice(fmt.Sprintf("No %s dimension in config, skipping change detection", optsCfg.DimensionKey))
+			outputs.LogNotice(fmt.Sprintf("No %s dimension in config, skipping change detection", optsCfg.Dimension))
 		} else {
 			changedFiles, err := gitdetect.DetectChangedFiles()
 			if err != nil {
@@ -56,7 +56,7 @@ func run() error {
 				outputs.LogNotice("Change detection not applicable for this event type, including all entries")
 			} else {
 				changedValues := expander.FilterChanged(changedFiles, optsCfg.BaseDir, knownValues)
-				outputs.LogNotice(fmt.Sprintf("Detected %d changed files, %d/%d %s(s) with changes: %v", len(changedFiles), len(changedValues), len(knownValues), optsCfg.DimensionKey, changedValues))
+				outputs.LogNotice(fmt.Sprintf("Detected %d changed files, %d/%d %s(s) with changes: %v", len(changedFiles), len(changedValues), len(knownValues), optsCfg.Dimension, changedValues))
 
 				if len(changedValues) == 0 {
 					outputs.SetOutput("matrix", "[]")
@@ -100,6 +100,12 @@ func run() error {
 	outputs.SetOutput("matrix", string(matrixJSON))
 	outputs.SetOutput("length", strconv.Itoa(len(entries)))
 
+	// Emit reserved global settings as outputs.
+	if optsCfg.BaseDir != "" {
+		outputs.SetOutput("base_dir", optsCfg.BaseDir)
+	}
+	outputs.SetOutput("dimension", optsCfg.Dimension)
+
 	// Emit a nested "config" JSON blob indexed by dimension values,
 	// so users can access fields via fromJson: e.g. fromJson(steps.id.outputs.config).api.dev.directory
 	if len(entries) > 0 {
@@ -119,7 +125,7 @@ func run() error {
 		// This covers single-entry matrices (all fields emitted) and multi-entry
 		// matrices (only shared fields like directory, ecr_repository are emitted;
 		// fields that differ per entry like environment, aws_account_id are skipped).
-		reserved := map[string]bool{"matrix": true, "changes_detected": true, "config": true, "length": true}
+		reserved := map[string]bool{"matrix": true, "changes_detected": true, "config": true, "length": true, "base_dir": true, "dimension": true}
 		for k, v := range entries[0] {
 			if reserved[k] {
 				continue

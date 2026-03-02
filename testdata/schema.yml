@@ -1,6 +1,8 @@
-global:
-  dimension_key: services
+settings:
+  dimension: services
   base_dir: foo
+
+global:
   aws_region: us-east-1
 
 environments:

@@ -7,12 +7,12 @@ inputs:
     description: 'Path to the configuration file (JSON or YAML)'
     required: true
     default: '.github/matrix-config.json'
-  dimension_key:
-    description: 'Override the dimension_key from config. Switches the primary dimension and removes the config dimension from the matrix.'
+  dimension:
+    description: 'Override the dimension from config. Switches the primary dimension and removes the config dimension from the matrix.'
     required: false
     default: ''
   target:
-    description: 'Filter by dimension_key value(s). Comma-separated for multiple (e.g. "api,frontend"). If a single value matches a dimension name (not a value of the current dimension_key), it switches the primary dimension instead.'
+    description: 'Filter by dimension value(s). Comma-separated for multiple (e.g. "api,frontend"). If a single value matches a dimension name (not a value of the current dimension), it switches the primary dimension instead.'
     required: false
     default: ''
   environment:
@@ -28,7 +28,7 @@ inputs:
     required: false
     default: ''
   change_detection:
-    description: 'When true, use git to detect changed files and filter the matrix to only entries with changes. Uses base_dir from global to map file paths. Requires actions/checkout with fetch-depth: 0.'
+    description: 'When true, use git to detect changed files and filter the matrix to only entries with changes. Uses base_dir from settings to map file paths. Requires actions/checkout with fetch-depth: 0.'
     required: false
     default: 'false'
 

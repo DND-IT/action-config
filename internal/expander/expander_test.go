@@ -75,55 +75,55 @@ func TestParseConfigFile_ValidYAML(t *testing.T) {
 	}
 }
 
-func TestParseOptions_DefaultDimensionKey(t *testing.T) {
+func TestParseOptions_DefaultDimension(t *testing.T) {
 	raw := RawConfig{
 		"service": []any{"api", "frontend"},
 	}
 
 	optsCfg, dims := ParseOptions(raw)
 
-	if optsCfg.DimensionKey != "service" {
-		t.Errorf("expected default dimension_key 'service', got %q", optsCfg.DimensionKey)
+	if optsCfg.Dimension != "service" {
+		t.Errorf("expected default dimension 'service', got %q", optsCfg.Dimension)
 	}
 	if _, ok := dims["service"]; !ok {
 		t.Error("expected 'service' in dimensions")
 	}
 }
 
-func TestParseOptions_CustomDimensionKey(t *testing.T) {
+func TestParseOptions_CustomDimension(t *testing.T) {
 	raw := RawConfig{
-		"global": map[string]any{
-			"dimension_key": "app",
-			"base_dir":      "deploy",
+		"settings": map[string]any{
+			"dimension": "app",
+			"base_dir":  "deploy",
 		},
 		"app": []any{"web", "worker"},
 	}
 
 	optsCfg, dims := ParseOptions(raw)
 
-	if optsCfg.DimensionKey != "app" {
-		t.Errorf("expected dimension_key 'app', got %q", optsCfg.DimensionKey)
+	if optsCfg.Dimension != "app" {
+		t.Errorf("expected dimension 'app', got %q", optsCfg.Dimension)
 	}
 	if optsCfg.BaseDir != "deploy" {
 		t.Errorf("expected base_dir 'deploy', got %q", optsCfg.BaseDir)
 	}
-	if _, ok := dims["global"]; ok {
-		t.Error("global should not appear in dimensions")
+	if _, ok := dims["settings"]; ok {
+		t.Error("settings should not appear in dimensions")
 	}
 	if _, ok := dims["app"]; !ok {
 		t.Error("expected 'app' in dimensions")
 	}
 }
 
-func TestParseOptions_MissingGlobal(t *testing.T) {
+func TestParseOptions_MissingSettings(t *testing.T) {
 	raw := RawConfig{
 		"service": []any{"api"},
 	}
 
 	optsCfg, _ := ParseOptions(raw)
 
-	if optsCfg.DimensionKey != "service" {
-		t.Errorf("expected default dimension_key 'service', got %q", optsCfg.DimensionKey)
+	if optsCfg.Dimension != "service" {
+		t.Errorf("expected default dimension 'service', got %q", optsCfg.Dimension)
 	}
 	if optsCfg.BaseDir != "" {
 		t.Errorf("expected empty base_dir, got %q", optsCfg.BaseDir)
@@ -132,10 +132,12 @@ func TestParseOptions_MissingGlobal(t *testing.T) {
 
 func TestParseOptions_GlobalConfigValues(t *testing.T) {
 	raw := RawConfig{
+		"settings": map[string]any{
+			"dimension": "service",
+		},
 		"global": map[string]any{
-			"dimension_key": "service",
-			"aws_region":    "us-east-1",
-			"timeout":       "30",
+			"aws_region": "us-east-1",
+			"timeout":    "30",
 		},
 		"service": []any{"api"},
 	}
@@ -151,12 +153,11 @@ func TestParseOptions_GlobalConfigValues(t *testing.T) {
 	if optsCfg.GlobalConfig["timeout"] != "30" {
 		t.Errorf("expected timeout '30', got %v", optsCfg.GlobalConfig["timeout"])
 	}
-	// dimension_key should NOT be in GlobalConfig
-	if _, ok := optsCfg.GlobalConfig["dimension_key"]; ok {
-		t.Error("dimension_key should not appear in GlobalConfig")
-	}
 	if _, ok := dims["global"]; ok {
 		t.Error("global should not appear in dimensions")
+	}
+	if _, ok := dims["settings"]; ok {
+		t.Error("settings should not appear in dimensions")
 	}
 }
 
@@ -204,7 +205,7 @@ func TestExpand_BasicExpansion(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{})
@@ -243,7 +244,7 @@ func TestExpand_PerDimensionValueConfig(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{})
@@ -275,7 +276,7 @@ func TestExpand_PerDimensionValueConfigOverrideOrder(t *testing.T) {
 			"dev": map[string]any{"region": "us-east-1"},
 		},
 	}
-	optsCfg := OptionsConfig{DimensionKey: "service"}
+	optsCfg := OptionsConfig{Dimension: "service"}
 
 	entries, err := Expand(dims, optsCfg, Options{})
 	if err != nil {
@@ -384,7 +385,7 @@ func TestExpand_OptionsExclude(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 		Exclude: []MatrixEntry{
 			{"service": "shared", "environment": "dev"},
 		},
@@ -415,7 +416,7 @@ func TestExpand_OptionsInclude(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 		Include: []MatrixEntry{
 			{"service": "shared", "environment": "all"},
 		},
@@ -442,7 +443,7 @@ func TestExpand_OptionsInclude(t *testing.T) {
 	}
 }
 
-func TestExpand_InputDimensionKeyFilter(t *testing.T) {
+func TestExpand_InputDimensionFilter(t *testing.T) {
 	dims := RawConfig{
 		"service": []any{"api", "frontend", "backend"},
 		"environment": map[string]any{
@@ -450,7 +451,7 @@ func TestExpand_InputDimensionKeyFilter(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{
@@ -483,7 +484,7 @@ func TestExpand_InputEnvironmentFilter(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{
@@ -514,7 +515,7 @@ func TestExpand_InputExclude(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{
@@ -539,7 +540,7 @@ func TestExpand_InputInclude(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{
@@ -562,7 +563,7 @@ func TestExpand_NoDimensions(t *testing.T) {
 		"version":  "1.0",
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{})
@@ -588,7 +589,7 @@ func TestExpand_MultipleCustomDimensions(t *testing.T) {
 		"region":  []any{"us-east-1", "eu-west-1"},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{})
@@ -620,7 +621,7 @@ func TestExpand_BaseConfigPropagated(t *testing.T) {
 		"app_name": "myapp",
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{})
@@ -651,7 +652,7 @@ func TestExpand_MapDimensionOnlySpecifiedValues(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{})
@@ -681,7 +682,7 @@ func TestExpand_ExcludePartialMatch(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 		Exclude: []MatrixEntry{
 			{"environment": "dev"},
 		},
@@ -712,7 +713,7 @@ func TestExpand_EmptyDimensionArray(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{})
@@ -726,12 +727,12 @@ func TestExpand_EmptyDimensionArray(t *testing.T) {
 	}
 }
 
-func TestExpand_DimensionKeysUsedAsIs(t *testing.T) {
+func TestExpand_DimensionsUsedAsIs(t *testing.T) {
 	dims := RawConfig{
 		"services": []any{"web", "worker"},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "services",
+		Dimension: "services",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{})
@@ -758,7 +759,7 @@ func TestExpand_DirectoryFieldWithBaseDir(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 		BaseDir:      "deploy",
 	}
 
@@ -788,7 +789,7 @@ func TestExpand_DirectoryFieldWithoutBaseDir(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{})
@@ -823,7 +824,7 @@ func TestExpand_GlobalConfig(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 		GlobalConfig: map[string]any{
 			"aws_region": "us-east-1",
 			"timeout":    "30",
@@ -866,7 +867,7 @@ func TestExpand_SortByDefault(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	entries, err := Expand(dims, optsCfg, Options{})
@@ -903,7 +904,7 @@ func TestExpand_SortByCustom(t *testing.T) {
 		},
 	}
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 		SortBy:       []string{"service", "environment"},
 	}
 
@@ -932,7 +933,7 @@ func TestExpand_SortByCustom(t *testing.T) {
 
 func TestParseOptions_SortBy(t *testing.T) {
 	raw := RawConfig{
-		"global": map[string]any{
+		"settings": map[string]any{
 			"sort_by": []any{"service", "environment"},
 		},
 		"service": []any{"api"},
@@ -1130,13 +1131,13 @@ func TestResolveTarget_ExplicitOverride(t *testing.T) {
 		"environment": map[string]any{"dev": nil, "prod": nil},
 		"terraform":   map[string]any{"infra": nil},
 	}
-	optsCfg := OptionsConfig{DimensionKey: "service"}
+	optsCfg := OptionsConfig{Dimension: "service"}
 	opts := Options{FilterKey: "service"}
 
 	ResolveTarget(raw, &optsCfg, &opts, "terraform")
 
-	if optsCfg.DimensionKey != "terraform" {
-		t.Errorf("expected dimension_key 'terraform', got %q", optsCfg.DimensionKey)
+	if optsCfg.Dimension != "terraform" {
+		t.Errorf("expected dimension 'terraform', got %q", optsCfg.Dimension)
 	}
 	if opts.FilterKey != "terraform" {
 		t.Errorf("expected filter_key 'terraform', got %q", opts.FilterKey)
@@ -1158,13 +1159,13 @@ func TestResolveTarget_TargetShorthand(t *testing.T) {
 		"environment": map[string]any{"dev": nil, "prod": nil},
 		"terraform":   map[string]any{"infra": nil},
 	}
-	optsCfg := OptionsConfig{DimensionKey: "service"}
+	optsCfg := OptionsConfig{Dimension: "service"}
 	opts := Options{FilterKey: "service", FilterValues: []string{"terraform"}}
 
 	ResolveTarget(raw, &optsCfg, &opts, "")
 
-	if optsCfg.DimensionKey != "terraform" {
-		t.Errorf("expected dimension_key 'terraform', got %q", optsCfg.DimensionKey)
+	if optsCfg.Dimension != "terraform" {
+		t.Errorf("expected dimension 'terraform', got %q", optsCfg.Dimension)
 	}
 	if opts.FilterKey != "terraform" {
 		t.Errorf("expected filter_key 'terraform', got %q", opts.FilterKey)
@@ -1182,14 +1183,14 @@ func TestResolveTarget_ValueFilter(t *testing.T) {
 		"service":     map[string]any{"api": nil, "frontend": nil},
 		"environment": map[string]any{"dev": nil, "prod": nil},
 	}
-	optsCfg := OptionsConfig{DimensionKey: "service"}
+	optsCfg := OptionsConfig{Dimension: "service"}
 	opts := Options{FilterKey: "service", FilterValues: []string{"api"}}
 
 	ResolveTarget(raw, &optsCfg, &opts, "")
 
 	// Should not switch — "api" is a value of service, not a dimension name
-	if optsCfg.DimensionKey != "service" {
-		t.Errorf("expected dimension_key 'service', got %q", optsCfg.DimensionKey)
+	if optsCfg.Dimension != "service" {
+		t.Errorf("expected dimension 'service', got %q", optsCfg.Dimension)
 	}
 	if len(opts.FilterValues) != 1 || opts.FilterValues[0] != "api" {
 		t.Errorf("expected filter_values [api], got %v", opts.FilterValues)
@@ -1202,14 +1203,14 @@ func TestResolveTarget_MultipleTargets(t *testing.T) {
 		"environment": map[string]any{"dev": nil, "prod": nil},
 		"terraform":   map[string]any{"infra": nil},
 	}
-	optsCfg := OptionsConfig{DimensionKey: "service"}
+	optsCfg := OptionsConfig{Dimension: "service"}
 	opts := Options{FilterKey: "service", FilterValues: []string{"terraform", "api"}}
 
 	ResolveTarget(raw, &optsCfg, &opts, "")
 
 	// Multiple targets → no dimension switch
-	if optsCfg.DimensionKey != "service" {
-		t.Errorf("expected dimension_key 'service', got %q", optsCfg.DimensionKey)
+	if optsCfg.Dimension != "service" {
+		t.Errorf("expected dimension 'service', got %q", optsCfg.Dimension)
 	}
 	if len(opts.FilterValues) != 2 {
 		t.Errorf("expected 2 filter_values, got %d", len(opts.FilterValues))
@@ -1222,14 +1223,14 @@ func TestResolveTarget_ExplicitWithTarget(t *testing.T) {
 		"environment": map[string]any{"dev": nil, "prod": nil},
 		"terraform":   map[string]any{"infra": nil},
 	}
-	optsCfg := OptionsConfig{DimensionKey: "service"}
+	optsCfg := OptionsConfig{Dimension: "service"}
 	opts := Options{FilterKey: "service", FilterValues: []string{"infra"}}
 
 	ResolveTarget(raw, &optsCfg, &opts, "terraform")
 
 	// Explicit override switches dimension, target filter is preserved for value filtering
-	if optsCfg.DimensionKey != "terraform" {
-		t.Errorf("expected dimension_key 'terraform', got %q", optsCfg.DimensionKey)
+	if optsCfg.Dimension != "terraform" {
+		t.Errorf("expected dimension 'terraform', got %q", optsCfg.Dimension)
 	}
 	if opts.FilterKey != "terraform" {
 		t.Errorf("expected filter_key 'terraform', got %q", opts.FilterKey)
@@ -1245,14 +1246,14 @@ func TestResolveTarget_ExplicitSameAsConfig(t *testing.T) {
 		"service":     map[string]any{"api": nil, "frontend": nil},
 		"environment": map[string]any{"dev": nil, "prod": nil},
 	}
-	optsCfg := OptionsConfig{DimensionKey: "service"}
+	optsCfg := OptionsConfig{Dimension: "service"}
 	opts := Options{FilterKey: "service", FilterValues: []string{"api"}}
 
 	ResolveTarget(raw, &optsCfg, &opts, "service")
 
 	// Same as config → no-op, treat target as value filter
-	if optsCfg.DimensionKey != "service" {
-		t.Errorf("expected dimension_key 'service', got %q", optsCfg.DimensionKey)
+	if optsCfg.Dimension != "service" {
+		t.Errorf("expected dimension 'service', got %q", optsCfg.Dimension)
 	}
 	if len(opts.FilterValues) != 1 || opts.FilterValues[0] != "api" {
 		t.Errorf("expected filter_values [api], got %v", opts.FilterValues)
@@ -1266,14 +1267,14 @@ func TestResolveTarget_TargetIsAlsoDimensionValue(t *testing.T) {
 		"environment": map[string]any{"dev": nil, "prod": nil},
 		"terraform":   map[string]any{"infra": nil},
 	}
-	optsCfg := OptionsConfig{DimensionKey: "service"}
+	optsCfg := OptionsConfig{Dimension: "service"}
 	opts := Options{FilterKey: "service", FilterValues: []string{"terraform"}}
 
 	ResolveTarget(raw, &optsCfg, &opts, "")
 
-	// "terraform" is a value of the current dimension_key, so treat as value filter
-	if optsCfg.DimensionKey != "service" {
-		t.Errorf("expected dimension_key 'service', got %q", optsCfg.DimensionKey)
+	// "terraform" is a value of the current dimension, so treat as value filter
+	if optsCfg.Dimension != "service" {
+		t.Errorf("expected dimension 'service', got %q", optsCfg.Dimension)
 	}
 	if len(opts.FilterValues) != 1 || opts.FilterValues[0] != "terraform" {
 		t.Errorf("expected filter_values [terraform], got %v", opts.FilterValues)
@@ -1286,13 +1287,13 @@ func TestResolveTarget_ArrayDimension(t *testing.T) {
 		"environment": map[string]any{"dev": nil, "prod": nil},
 		"terraform":   map[string]any{"infra": nil},
 	}
-	optsCfg := OptionsConfig{DimensionKey: "service"}
+	optsCfg := OptionsConfig{Dimension: "service"}
 	opts := Options{FilterKey: "service", FilterValues: []string{"terraform"}}
 
 	ResolveTarget(raw, &optsCfg, &opts, "")
 
-	if optsCfg.DimensionKey != "terraform" {
-		t.Errorf("expected dimension_key 'terraform', got %q", optsCfg.DimensionKey)
+	if optsCfg.Dimension != "terraform" {
+		t.Errorf("expected dimension 'terraform', got %q", optsCfg.Dimension)
 	}
 	if _, ok := raw["service"]; ok {
 		t.Error("service dimension should have been removed")

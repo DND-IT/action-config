@@ -1,8 +1,10 @@
 {
-  "global": {
-    "dimension_key": "service",
+  "settings": {
+    "dimension": "service",
     "base_dir": "deploy",
-    "sort_by": ["environment"],
+    "sort_by": ["environment"]
+  },
+  "global": {
     "aws_region": "us-east-1"
   },
   "exclude": [

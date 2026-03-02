@@ -18,9 +18,9 @@ type MatrixEntry map[string]any
 // RawConfig represents the parsed configuration file.
 type RawConfig map[string]any
 
-// OptionsConfig holds the parsed "global" block from the config file.
+// OptionsConfig holds the parsed "settings" and "global" blocks from the config file.
 type OptionsConfig struct {
-	DimensionKey string
+	Dimension    string
 	BaseDir      string
 	SortBy       []string
 	GlobalConfig map[string]any
@@ -81,24 +81,17 @@ func ParseConfigFile(path string) (RawConfig, error) {
 
 // reservedKeys are top-level keys that are never treated as dimensions.
 var reservedKeys = map[string]bool{
-	"global":  true,
-	"exclude": true,
-	"include": true,
-}
-
-// globalReservedKeys are keys inside the "global" block that are action settings,
-// not config values to be merged into entries.
-var globalReservedKeys = map[string]bool{
-	"dimension_key": true,
-	"base_dir":      true,
-	"sort_by":       true,
+	"settings": true,
+	"global":   true,
+	"exclude":  true,
+	"include":  true,
 }
 
 // ParseOptions extracts reserved top-level keys from a raw config, returning
 // the parsed options and the remaining dimensions-only config.
 func ParseOptions(raw RawConfig) (OptionsConfig, RawConfig) {
 	optsCfg := OptionsConfig{
-		DimensionKey: "service",
+		Dimension: "service",
 	}
 
 	dimensions := make(RawConfig)
@@ -122,46 +115,42 @@ func ParseOptions(raw RawConfig) (OptionsConfig, RawConfig) {
 		}
 	}
 
-	// Global block
-	globalRaw, ok := raw["global"]
-	if !ok {
-		return optsCfg, dimensions
-	}
+	// Settings block — action settings (dimension, base_dir, sort_by)
+	if settingsRaw, ok := raw["settings"]; ok {
+		if settingsMap, ok := settingsRaw.(map[string]any); ok {
+			if d, ok := settingsMap["dimension"].(string); ok && d != "" {
+				optsCfg.Dimension = d
+			}
 
-	globalMap, ok := globalRaw.(map[string]any)
-	if !ok {
-		return optsCfg, dimensions
-	}
+			if bd, ok := settingsMap["base_dir"].(string); ok {
+				optsCfg.BaseDir = bd
+			}
 
-	if mk, ok := globalMap["dimension_key"].(string); ok && mk != "" {
-		optsCfg.DimensionKey = mk
-	}
-
-	if bd, ok := globalMap["base_dir"].(string); ok {
-		optsCfg.BaseDir = bd
-	}
-
-	if sb, ok := globalMap["sort_by"]; ok {
-		if arr, ok := toSlice(sb); ok {
-			sortBy := make([]string, 0, len(arr))
-			for _, v := range arr {
-				if s, ok := v.(string); ok {
-					sortBy = append(sortBy, s)
+			if sb, ok := settingsMap["sort_by"]; ok {
+				if arr, ok := toSlice(sb); ok {
+					sortBy := make([]string, 0, len(arr))
+					for _, v := range arr {
+						if s, ok := v.(string); ok {
+							sortBy = append(sortBy, s)
+						}
+					}
+					optsCfg.SortBy = sortBy
 				}
 			}
-			optsCfg.SortBy = sortBy
 		}
 	}
 
-	// Everything else in global goes to GlobalConfig
-	globalConfig := make(map[string]any)
-	for k, v := range globalMap {
-		if !globalReservedKeys[k] {
-			globalConfig[k] = v
+	// Global block — everything goes straight to GlobalConfig
+	if globalRaw, ok := raw["global"]; ok {
+		if globalMap, ok := globalRaw.(map[string]any); ok {
+			if len(globalMap) > 0 {
+				globalConfig := make(map[string]any, len(globalMap))
+				for k, v := range globalMap {
+					globalConfig[k] = v
+				}
+				optsCfg.GlobalConfig = globalConfig
+			}
 		}
-	}
-	if len(globalConfig) > 0 {
-		optsCfg.GlobalConfig = globalConfig
 	}
 
 	return optsCfg, dimensions
@@ -296,11 +285,11 @@ func sortEntries(entries []MatrixEntry, keys []string) {
 }
 
 // addDirectoryField sets the "directory" field on each entry based on the
-// dimension_key value and base_dir. When the dimension_key is not present
-// in an entry, it falls back to base_dir alone.
+// dimension value and base_dir. When the dimension is not present in an
+// entry, it falls back to base_dir alone.
 func addDirectoryField(entries []MatrixEntry, optsCfg OptionsConfig) {
 	for _, entry := range entries {
-		val, ok := entry[optsCfg.DimensionKey]
+		val, ok := entry[optsCfg.Dimension]
 		if !ok {
 			if optsCfg.BaseDir != "" {
 				entry["directory"] = optsCfg.BaseDir
@@ -540,19 +529,19 @@ func UniqueValues(entries []MatrixEntry, key string) []string {
 	return result
 }
 
-// ResolveTarget handles dimension selection. If dimensionKeyOverride is set (from
-// dimension_key input), it overrides the config's dimension_key and removes the old
+// ResolveTarget handles dimension selection. If dimensionOverride is set (from
+// dimension input), it overrides the config's dimension and removes the old
 // dimension. Otherwise, if target is a single value matching a dimension name (but
-// not a value of the current dimension_key), it triggers the same switch.
-func ResolveTarget(raw RawConfig, optsCfg *OptionsConfig, opts *Options, dimensionKeyOverride string) {
-	configDimKey := optsCfg.DimensionKey
+// not a value of the current dimension), it triggers the same switch.
+func ResolveTarget(raw RawConfig, optsCfg *OptionsConfig, opts *Options, dimensionOverride string) {
+	configDim := optsCfg.Dimension
 
-	// Explicit dimension_key input override
-	if dimensionKeyOverride != "" && dimensionKeyOverride != configDimKey {
-		if isDimension(raw[dimensionKeyOverride]) {
-			delete(raw, configDimKey)
-			optsCfg.DimensionKey = dimensionKeyOverride
-			opts.FilterKey = dimensionKeyOverride
+	// Explicit dimension input override
+	if dimensionOverride != "" && dimensionOverride != configDim {
+		if isDimension(raw[dimensionOverride]) {
+			delete(raw, configDim)
+			optsCfg.Dimension = dimensionOverride
+			opts.FilterKey = dimensionOverride
 			return
 		}
 	}
@@ -567,16 +556,16 @@ func ResolveTarget(raw RawConfig, optsCfg *OptionsConfig, opts *Options, dimensi
 		return
 	}
 
-	// If it's also a value of the current dimension_key, treat as value filter
-	for _, v := range ExtractDimensionValues(raw, configDimKey) {
+	// If it's also a value of the current dimension, treat as value filter
+	for _, v := range ExtractDimensionValues(raw, configDim) {
 		if v == target {
 			return
 		}
 	}
 
 	// Switch dimensions
-	delete(raw, configDimKey)
-	optsCfg.DimensionKey = target
+	delete(raw, configDim)
+	optsCfg.Dimension = target
 	opts.FilterKey = target
 	opts.FilterValues = nil
 }

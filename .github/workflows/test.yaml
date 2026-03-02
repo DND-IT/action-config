@@ -122,11 +122,11 @@ jobs:
           INPUT_INCLUDE='[{"service":"shared","environment":"all"}]' \
             ./action-config
 
-      - name: test dimension_key override
+      - name: test dimension override
         id: dimkey
         run: |
           INPUT_CONFIG_PATH=testdata/valid-list-config.json \
-          INPUT_DIMENSION_KEY=terraform \
+          INPUT_DIMENSION=terraform \
             ./action-config
 
       - name: test target dimension shorthand

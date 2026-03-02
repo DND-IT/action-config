@@ -18,9 +18,11 @@ A GitHub Action for centralized configuration management that enables you to def
 
 ```json
 {
+  "settings": {
+    "dimension": "service",
+    "base_dir": "deploy"
+  },
   "global": {
-    "dimension_key": "service",
-    "base_dir": "deploy",
     "aws_region": "us-east-1"
   },
   "environment": {
@@ -54,7 +56,7 @@ A GitHub Action for centralized configuration management that enables you to def
 ]
 ```
 
-Dimensions are defined as top-level keys (maps or arrays). The `global` key holds shared settings and config values merged into every entry. Per-dimension-value configs (like `aws_account_id` per environment) are embedded directly in the dimension map. The `directory` field is automatically computed from `base_dir` and the primary dimension value. When the primary dimension is not present, `directory` falls back to `base_dir` alone.
+Dimensions are defined as top-level keys (maps or arrays). The `settings` key holds action settings (`dimension`, `base_dir`, `sort_by`). The `global` key holds shared config values merged into every entry. Per-dimension-value configs (like `aws_account_id` per environment) are embedded directly in the dimension map. The `directory` field is automatically computed from `base_dir` and the primary dimension value. When the primary dimension is not present, `directory` falls back to `base_dir` alone.
 
 **Add a new service?** Just add a key to the `service` map — instantly get 3 more environments!
 **Add a new environment?** Just add its config block — all services automatically deploy there!
@@ -165,12 +167,12 @@ jobs:
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
 | `config_path` | Path to the configuration file (JSON or YAML) | No | `.github/matrix-config.json` |
-| `dimension_key` | Override the `dimension_key` from config. Switches the primary dimension and removes the config dimension from the matrix. | No | |
-| `target` | Filter by dimension_key value(s), or switch dimension (see [Dimension Selection](#dimension-selection)). | No | |
+| `dimension` | Override the `dimension` from config. Switches the primary dimension and removes the config dimension from the matrix. | No | |
+| `target` | Filter by dimension value(s), or switch dimension (see [Dimension Selection](#dimension-selection)). | No | |
 | `environment` | Filter environments. Comma-separated for multiple (e.g. `dev,prod`) | No | |
 | `exclude` | JSON array of patterns to exclude (e.g. `[{"service":"shared","environment":"dev"}]`) | No | |
 | `include` | JSON array of entries to append (e.g. `[{"service":"shared"}]`) | No | |
-| `change_detection` | Filter matrix to only entries with file changes. Uses `base_dir` from global to map file paths. Requires `actions/checkout` with `fetch-depth: 0`. | No | `false` |
+| `change_detection` | Filter matrix to only entries with file changes. Uses `base_dir` from settings to map file paths. Requires `actions/checkout` with `fetch-depth: 0`. | No | `false` |
 
 The `target` and `environment` inputs are convenience filters applied **after** the config file is expanded. The `exclude` and `include` inputs work the same way as their config file counterparts but are applied after them, allowing workflow-level overrides.
 
@@ -238,13 +240,14 @@ jobs:
 
 ## Configuration Format
 
-The configuration file must be a JSON or YAML **object**. There are three reserved top-level keys (`global`, `exclude`, `include`). Everything else is a dimension.
+The configuration file must be a JSON or YAML **object**. There are four reserved top-level keys (`settings`, `global`, `exclude`, `include`). Everything else is a dimension.
 
 ### Reserved Top-Level Keys
 
 | Key | Description |
 |-----|-------------|
-| `global` | Settings and shared config values. Contains action settings (`dimension_key`, `base_dir`, `sort_by`) plus any other keys which are merged as config values into every entry. |
+| `settings` | Action settings: `dimension`, `base_dir`, `sort_by`. |
+| `global` | Shared config values merged into every entry. |
 | `exclude` | Array of patterns to exclude from the cartesian product. |
 | `include` | Array of entries to append to the matrix. |
 
@@ -269,24 +272,26 @@ Any non-reserved top-level key is a dimension. Dimensions can be:
 
 Both formats are supported and can be mixed in the same config.
 
-### Global Settings
+### Settings
 
-The `global` key holds action settings and shared config values:
+The `settings` key holds action settings:
 
 | Key | Description | Default |
 |-----|-------------|---------|
-| `dimension_key` | Name of the primary dimension key (used for filtering via `services` input and change detection) | `"service"` |
-| `base_dir` | Base directory for building the `directory` output field and mapping file paths for change detection. When the `dimension_key` is not present in an entry, `directory` is set to `base_dir` alone. | (empty) |
+| `dimension` | Name of the primary dimension (used for filtering via `target` input and change detection) | `"service"` |
+| `base_dir` | Base directory for building the `directory` output field and mapping file paths for change detection. When the `dimension` is not present in an entry, `directory` is set to `base_dir` alone. | (empty) |
 | `sort_by` | Array of keys to sort the matrix entries by | `["environment"]` |
 
-Any other key in `global` is a config value merged into every matrix entry. For example, `aws_region: us-east-1` in `global` gives every entry that value unless overridden by a per-dimension-value config.
+### Global Config
+
+The `global` key holds shared config values merged into every matrix entry. For example, `aws_region: us-east-1` in `global` gives every entry that value unless overridden by a per-dimension-value config.
 
 ### Merge Order
 
 For each matrix entry, values are merged in this order (later overrides earlier):
 
 1. **Scalar top-level values** — non-dimension, non-reserved top-level values
-2. **Global config values** — `global` minus reserved keys (`dimension_key`, `base_dir`, `sort_by`)
+2. **Global config values** — all keys from `global`
 3. **Dimension values** — e.g. `environment: dev`, `service: api`
 4. **Per-dimension-value configs** — in alphabetical dimension key order (e.g. `environment` before `service`)
 
@@ -376,11 +381,11 @@ For the `api/dev` entry: first `environment:dev` config is applied (`aws_account
 
 ### Sorting
 
-Matrix entries are sorted by `["environment"]` by default, which groups entries by environment. Override with `sort_by` in global:
+Matrix entries are sorted by `["environment"]` by default, which groups entries by environment. Override with `sort_by` in settings:
 
 ```json
 {
-  "global": {
+  "settings": {
     "sort_by": ["service", "environment"]
   },
   "environment": {
@@ -400,8 +405,8 @@ The dimension name is fully configurable. You can use `service`, `app`, `compone
 
 ```json
 {
-  "global": {
-    "dimension_key": "app",
+  "settings": {
+    "dimension": "app",
     "base_dir": "apps"
   },
   "environment": {
@@ -419,8 +424,8 @@ This produces entries like `{"app": "web", "environment": "dev", "directory": "a
 Add a `region` dimension to deploy each service across multiple AWS regions:
 
 ```yaml
-global:
-  dimension_key: service
+settings:
+  dimension: service
   base_dir: deploy
 
 environment:
@@ -576,20 +581,20 @@ When your config defines multiple primary dimensions (e.g. `service` and `terraf
 
 There are two ways to select a dimension:
 
-**1. Explicit `dimension_key` input** — directly overrides the config's `dimension_key`. The config's original dimension is removed from the cross-product:
+**1. Explicit `dimension` input** — directly overrides the config's `dimension`. The config's original dimension is removed from the cross-product:
 
 ```yaml
 - uses: DND-IT/action-config@v3
   with:
-    dimension_key: terraform  # switch to terraform dimension, remove service
+    dimension: terraform  # switch to terraform dimension, remove service
 ```
 
-**2. `target` shorthand** — if `target` is a single value that matches a dimension name (and is NOT a value of the current `dimension_key`), it automatically switches dimensions:
+**2. `target` shorthand** — if `target` is a single value that matches a dimension name (and is NOT a value of the current `dimension`), it automatically switches dimensions:
 
 ```yaml
 - uses: DND-IT/action-config@v3
   with:
-    target: terraform  # auto-detects as dimension name → same as dimension_key: terraform
+    target: terraform  # auto-detects as dimension name → same as dimension: terraform
 ```
 
 **Combined: select dimension + filter within it:**
@@ -597,16 +602,16 @@ There are two ways to select a dimension:
 ```yaml
 - uses: DND-IT/action-config@v3
   with:
-    dimension_key: terraform
+    dimension: terraform
     target: infra              # filter terraform=infra
     environment: dev           # also filter environment=dev
 ```
 
 **Resolution order:**
 
-1. If `dimension_key` input is provided and differs from config → override, remove old dimension
-2. Else if `target` is a single value matching a dimension name (and NOT a value of the current `dimension_key`) → same switch
-3. Otherwise → `target` filters values within the current `dimension_key` (default behavior)
+1. If `dimension` input is provided and differs from config → override, remove old dimension
+2. Else if `target` is a single value matching a dimension name (and NOT a value of the current `dimension`) → same switch
+3. Otherwise → `target` filters values within the current `dimension` (default behavior)
 
 ### Running Jobs Sequentially
 
@@ -646,7 +651,7 @@ See the [example workflow](.github/workflows/example.yaml) and example configura
 This action is written in Go and runs as a Docker container. It:
 
 1. Reads the specified configuration file
-2. Parses the `global` block and dimension maps/arrays
+2. Parses the `settings` and `global` blocks and dimension maps/arrays
 3. Expands the configuration into a cartesian product matrix
 4. Applies exclude/include rules and filters
 5. Adds the `directory` field to each entry

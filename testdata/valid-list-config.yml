@@ -1,5 +1,7 @@
+settings:
+  dimension: service
+
 global:
-  dimension_key: service
   aws_region: us-east-1
 
 environment:

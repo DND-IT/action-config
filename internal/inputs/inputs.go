@@ -13,7 +13,7 @@ import (
 // Config holds all parsed input values.
 type Config struct {
 	ConfigPath      string
-	DimensionKey    string
+	Dimension       string
 	Target          string
 	Environment     string
 	Exclude         string
@@ -25,11 +25,11 @@ type Config struct {
 func Parse() *Config {
 	return &Config{
 		ConfigPath:      getEnv("CONFIG_PATH", ".github/matrix-config.json"),
-		DimensionKey:    getEnv("DIMENSION_KEY", ""),
+		Dimension:       getEnv("DIMENSION", ""),
 		Target:          getEnv("TARGET", ""),
-		Environment:      getEnv("ENVIRONMENT", ""),
-		Exclude:          getEnv("EXCLUDE", ""),
-		Include:          getEnv("INCLUDE", ""),
+		Environment:     getEnv("ENVIRONMENT", ""),
+		Exclude:         getEnv("EXCLUDE", ""),
+		Include:         getEnv("INCLUDE", ""),
 		ChangeDetection: getEnv("CHANGE_DETECTION", "false") == "true",
 	}
 }
