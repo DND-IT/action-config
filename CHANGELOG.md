@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [2.3.0](https://github.com/DND-IT/action-config/compare/v2.2.0...v2.3.0) (2026-02-24)
+
+
+### Features
+
+* fall back to base_dir for directory when dimension_key is absent ([f94f6dd](https://github.com/DND-IT/action-config/commit/f94f6dde46c31ed9d6d32f85201f9fc10ae7d83d))
+
 ## [2.2.0](https://github.com/DND-IT/action-config/compare/v2.1.1...v2.2.0) (2026-02-24)
 
 
