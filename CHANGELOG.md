@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [3.0.0](https://github.com/DND-IT/action-config/compare/v2.3.0...v3.0.0) (2026-03-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* The config format has changed. Move dimension_key, base_dir, and sort_by from global into a new settings block, and rename dimension_key to dimension. The action input dimension_key is now dimension, and the output dimension_key is now dimension.
+
+### Features
+
+* separate settings from global and rename dimension_key to dimension ([311ccb6](https://github.com/DND-IT/action-config/commit/311ccb6108b9ce98ceac7249a918910dbf414e05))
+
 ## [2.3.0](https://github.com/DND-IT/action-config/compare/v2.2.0...v2.3.0) (2026-02-24)
 
 
