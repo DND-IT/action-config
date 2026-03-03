@@ -8,8 +8,16 @@ import (
 	"time"
 )
 
+type outputEntry struct {
+	name  string
+	value string
+}
+
+var recorded []outputEntry
+
 // SetOutput writes a value to GITHUB_OUTPUT.
 func SetOutput(name, value string) {
+	recorded = append(recorded, outputEntry{name, value})
 	fmt.Printf("::debug::output %s=%s\n", name, value)
 	outputFile := os.Getenv("GITHUB_OUTPUT")
 	if outputFile == "" {
@@ -55,4 +63,32 @@ func LogNotice(msg string) {
 // LogError prints an error message.
 func LogError(msg string) {
 	fmt.Printf("::error::%s\n", msg)
+}
+
+// WriteSummary writes all recorded outputs to the GitHub Actions step summary.
+func WriteSummary() {
+	summaryFile := os.Getenv("GITHUB_STEP_SUMMARY")
+	if summaryFile == "" || len(recorded) == 0 {
+		return
+	}
+
+	var sb strings.Builder
+	sb.WriteString("### Outputs\n\n")
+	sb.WriteString("| Name | Value |\n")
+	sb.WriteString("|------|-------|\n")
+
+	for _, e := range recorded {
+		if strings.Contains(e.value, "\n") || len(e.value) > 100 {
+			sb.WriteString(fmt.Sprintf("| `%s` | <details><summary>Show</summary>\n\n```json\n%s\n```\n\n</details> |\n", e.name, e.value))
+		} else {
+			sb.WriteString(fmt.Sprintf("| `%s` | `%s` |\n", e.name, e.value))
+		}
+	}
+
+	f, err := os.OpenFile(summaryFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return
+	}
+	defer func() { _ = f.Close() }()
+	_, _ = f.WriteString(sb.String())
 }

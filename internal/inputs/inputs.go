@@ -19,6 +19,7 @@ type Config struct {
 	Exclude         string
 	Include         string
 	ChangeDetection bool
+	Summary         bool
 }
 
 // Parse reads inputs from environment variables.
@@ -31,6 +32,7 @@ func Parse() *Config {
 		Exclude:         getEnv("EXCLUDE", ""),
 		Include:         getEnv("INCLUDE", ""),
 		ChangeDetection: getEnv("CHANGE_DETECTION", "false") == "true",
+		Summary:         getEnv("SUMMARY", "true") != "false",
 	}
 }
 
