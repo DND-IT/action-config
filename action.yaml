@@ -31,6 +31,10 @@ inputs:
     description: 'When true, use git to detect changed files and filter the matrix to only entries with changes. Uses base_dir from settings to map file paths. Requires actions/checkout with fetch-depth: 0.'
     required: false
     default: 'false'
+  summary:
+    description: 'Write all output values to the GitHub Actions step summary for at-a-glance visibility.'
+    required: false
+    default: 'true'
 
 outputs:
   matrix:

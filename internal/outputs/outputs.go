@@ -2,14 +2,23 @@
 package outputs
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 )
 
+type outputEntry struct {
+	name  string
+	value string
+}
+
+var recorded []outputEntry
+
 // SetOutput writes a value to GITHUB_OUTPUT.
 func SetOutput(name, value string) {
+	recorded = append(recorded, outputEntry{name, value})
 	fmt.Printf("::debug::output %s=%s\n", name, value)
 	outputFile := os.Getenv("GITHUB_OUTPUT")
 	if outputFile == "" {
@@ -55,4 +64,55 @@ func LogNotice(msg string) {
 // LogError prints an error message.
 func LogError(msg string) {
 	fmt.Printf("::error::%s\n", msg)
+}
+
+func prettyJSON(s string) string {
+	var v any
+	if err := json.Unmarshal([]byte(s), &v); err != nil {
+		return s
+	}
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return s
+	}
+	return string(b)
+}
+
+func isLongValue(v string) bool {
+	return strings.Contains(v, "\n") || len(v) > 100
+}
+
+// WriteSummary writes all recorded outputs to the GitHub Actions step summary.
+func WriteSummary() {
+	summaryFile := os.Getenv("GITHUB_STEP_SUMMARY")
+	if summaryFile == "" || len(recorded) == 0 {
+		return
+	}
+
+	var sb strings.Builder
+	var details []outputEntry
+
+	sb.WriteString("### Outputs\n\n")
+	sb.WriteString("| Name | Value |\n")
+	sb.WriteString("|------|-------|\n")
+
+	for _, e := range recorded {
+		if isLongValue(e.value) {
+			fmt.Fprintf(&sb, "| `%s` | *(see below)* |\n", e.name)
+			details = append(details, e)
+		} else {
+			fmt.Fprintf(&sb, "| `%s` | `%s` |\n", e.name, e.value)
+		}
+	}
+
+	for _, e := range details {
+		fmt.Fprintf(&sb, "\n<details><summary><code>%s</code></summary>\n\n```json\n%s\n```\n\n</details>\n", e.name, prettyJSON(e.value))
+	}
+
+	f, err := os.OpenFile(summaryFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return
+	}
+	defer func() { _ = f.Close() }()
+	_, _ = f.WriteString(sb.String())
 }

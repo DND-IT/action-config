@@ -63,6 +63,9 @@ func run() error {
 					outputs.SetOutput("config", "{}")
 					outputs.SetOutput("length", "0")
 					outputs.SetOutput("changes_detected", "false")
+					if cfg.Summary {
+						outputs.WriteSummary()
+					}
 					outputs.LogNotice("No entries with changes, matrix is empty")
 					return nil
 				}
@@ -150,6 +153,10 @@ func run() error {
 		} else {
 			outputs.SetOutput("changes_detected", "false")
 		}
+	}
+
+	if cfg.Summary {
+		outputs.WriteSummary()
 	}
 
 	// Log filters

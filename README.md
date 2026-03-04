@@ -173,6 +173,7 @@ jobs:
 | `exclude` | JSON array of patterns to exclude (e.g. `[{"service":"shared","environment":"dev"}]`) | No | |
 | `include` | JSON array of entries to append (e.g. `[{"service":"shared"}]`) | No | |
 | `change_detection` | Filter matrix to only entries with file changes. Uses `base_dir` from settings to map file paths. Requires `actions/checkout` with `fetch-depth: 0`. | No | `false` |
+| `summary` | Write all output values to the GitHub Actions step summary for at-a-glance visibility. | No | `true` |
 
 The `target` and `environment` inputs are convenience filters applied **after** the config file is expanded. The `exclude` and `include` inputs work the same way as their config file counterparts but are applied after them, allowing workflow-level overrides.
 
