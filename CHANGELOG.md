@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [3.1.0](https://github.com/DND-IT/action-config/compare/v3.0.0...v3.1.0) (2026-03-04)
+
+
+### Features
+
+* write outputs to GitHub Actions step summary ([#16](https://github.com/DND-IT/action-config/issues/16)) ([ea932c5](https://github.com/DND-IT/action-config/commit/ea932c57a353a556ca777e072f09d73c72c9bfdf))
+
 ## [3.0.0](https://github.com/DND-IT/action-config/compare/v2.3.0...v3.0.0) (2026-03-02)
 
 
