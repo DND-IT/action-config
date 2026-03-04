@@ -2,6 +2,7 @@
 package outputs
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -65,6 +66,18 @@ func LogError(msg string) {
 	fmt.Printf("::error::%s\n", msg)
 }
 
+func prettyJSON(s string) string {
+	var v any
+	if err := json.Unmarshal([]byte(s), &v); err != nil {
+		return s
+	}
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return s
+	}
+	return string(b)
+}
+
 func isLongValue(v string) bool {
 	return strings.Contains(v, "\n") || len(v) > 100
 }
@@ -93,7 +106,7 @@ func WriteSummary() {
 	}
 
 	for _, e := range details {
-		fmt.Fprintf(&sb, "\n<details><summary><code>%s</code></summary>\n\n```json\n%s\n```\n\n</details>\n", e.name, e.value)
+		fmt.Fprintf(&sb, "\n<details><summary><code>%s</code></summary>\n\n```json\n%s\n```\n\n</details>\n", e.name, prettyJSON(e.value))
 	}
 
 	f, err := os.OpenFile(summaryFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
