@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [3.2.0](https://github.com/DND-IT/action-config/compare/v3.1.0...v3.2.0) (2026-03-17)
+
+
+### Features
+
+* dimension priority chain and fix nil matrix output ([#18](https://github.com/DND-IT/action-config/issues/18)) ([59f3c6a](https://github.com/DND-IT/action-config/commit/59f3c6a71a48446deae8973faf123c38c3442102))
+* move dimension default to priority chain and fix nil matrix output ([59f3c6a](https://github.com/DND-IT/action-config/commit/59f3c6a71a48446deae8973faf123c38c3442102))
+
 ## [3.1.0](https://github.com/DND-IT/action-config/compare/v3.0.0...v3.1.0) (2026-03-04)
 
 
