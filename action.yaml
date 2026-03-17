@@ -8,7 +8,7 @@ inputs:
     required: true
     default: '.github/matrix-config.json'
   dimension:
-    description: 'Override the dimension from config. Switches the primary dimension and removes the config dimension from the matrix.'
+    description: 'Set the primary dimension. Used for directory field, target filtering, and change detection. Defaults to the config settings.dimension value, or "service" if neither is set.'
     required: false
     default: ''
   target:

@@ -35,7 +35,15 @@ func run() error {
 
 	optsCfg, dimensions := expander.ParseOptions(raw)
 
-	// Set the filter key from the config's dimension
+	// Dimension priority: explicit input > config settings > default "service".
+	// action.yaml defaults dimension to "" so we can distinguish explicit input
+	// from unset. The "service" fallback preserves backward compat for v3;
+	// v4 will remove it to make dimension fully optional.
+	if cfg.Dimension == "" && optsCfg.Dimension == "" {
+		optsCfg.Dimension = "service"
+	}
+
+	// Set the filter key from the resolved dimension
 	opts.FilterKey = optsCfg.Dimension
 
 	// Resolve dimension selection (explicit input or target shorthand)
