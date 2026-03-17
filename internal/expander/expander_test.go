@@ -82,8 +82,8 @@ func TestParseOptions_DefaultDimension(t *testing.T) {
 
 	optsCfg, dims := ParseOptions(raw)
 
-	if optsCfg.Dimension != "service" {
-		t.Errorf("expected default dimension 'service', got %q", optsCfg.Dimension)
+	if optsCfg.Dimension != "" {
+		t.Errorf("expected empty default dimension, got %q", optsCfg.Dimension)
 	}
 	if _, ok := dims["service"]; !ok {
 		t.Error("expected 'service' in dimensions")
@@ -122,8 +122,8 @@ func TestParseOptions_MissingSettings(t *testing.T) {
 
 	optsCfg, _ := ParseOptions(raw)
 
-	if optsCfg.Dimension != "service" {
-		t.Errorf("expected default dimension 'service', got %q", optsCfg.Dimension)
+	if optsCfg.Dimension != "" {
+		t.Errorf("expected empty dimension when no settings, got %q", optsCfg.Dimension)
 	}
 	if optsCfg.BaseDir != "" {
 		t.Errorf("expected empty base_dir, got %q", optsCfg.BaseDir)
@@ -724,6 +724,40 @@ func TestExpand_EmptyDimensionArray(t *testing.T) {
 	// 0 services x 1 env = 0 entries
 	if len(entries) != 0 {
 		t.Fatalf("expected 0 entries, got %d", len(entries))
+	}
+
+	data, _ := json.Marshal(entries)
+	if string(data) != "[]" {
+		t.Errorf("expected JSON \"[]\", got %q", string(data))
+	}
+}
+
+func TestExpand_EmptyResultMarshalsToEmptyArray(t *testing.T) {
+	dims := RawConfig{
+		"service": map[string]any{"api": nil},
+		"environment": map[string]any{
+			"prod": map[string]any{"aws_account_id": "111111111111"},
+		},
+	}
+	optsCfg := OptionsConfig{Dimension: "service"}
+	// Filter by environment=dev which doesn't exist → 0 entries
+	opts := Options{EnvironmentFilter: []string{"dev"}}
+
+	entries, err := Expand(dims, optsCfg, opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(entries) != 0 {
+		t.Fatalf("expected 0 entries, got %d", len(entries))
+	}
+
+	data, err := json.Marshal(entries)
+	if err != nil {
+		t.Fatalf("unexpected marshal error: %v", err)
+	}
+	if string(data) != "[]" {
+		t.Errorf("expected JSON \"[]\", got %q", string(data))
 	}
 }
 

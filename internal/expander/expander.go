@@ -90,9 +90,7 @@ var reservedKeys = map[string]bool{
 // ParseOptions extracts reserved top-level keys from a raw config, returning
 // the parsed options and the remaining dimensions-only config.
 func ParseOptions(raw RawConfig) (OptionsConfig, RawConfig) {
-	optsCfg := OptionsConfig{
-		Dimension: "service",
-	}
+	optsCfg := OptionsConfig{}
 
 	dimensions := make(RawConfig)
 	for k, v := range raw {
@@ -266,6 +264,11 @@ func Expand(raw RawConfig, optsCfg OptionsConfig, opts Options) ([]MatrixEntry, 
 		sortBy = []string{"environment"}
 	}
 	sortEntries(entries, sortBy)
+
+	// Ensure we never return nil so json.Marshal produces "[]" not "null".
+	if entries == nil {
+		entries = []MatrixEntry{}
+	}
 
 	return entries, nil
 }
