@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [3.3.0](https://github.com/DND-IT/action-config/compare/v3.2.0...v3.3.0) (2026-04-22)
+
+
+### Features
+
+* default config_path to YAML ([304ed88](https://github.com/DND-IT/action-config/commit/304ed88085728912173198b24a8dad5d662b91d6))
+
 ## [3.2.0](https://github.com/DND-IT/action-config/compare/v3.1.0...v3.2.0) (2026-03-17)
 
 
