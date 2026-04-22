@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [4.0.0](https://github.com/DND-IT/action-config/compare/v3.2.0...v4.0.0) (2026-04-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* default config_path changed from .github/matrix-config.json to .github/matrix-config.yaml. Repos relying on the JSON default must set config_path explicitly.
+
+### Features
+
+* default config_path to YAML ([772ceda](https://github.com/DND-IT/action-config/commit/772ceda5524389e174109f9925e0ba28303c1a35))
+* default config_path to YAML ([7fe5bee](https://github.com/DND-IT/action-config/commit/7fe5bee78c473499207097ef6e7a5f84fb1c4da2))
+
 ## [3.2.0](https://github.com/DND-IT/action-config/compare/v3.1.0...v3.2.0) (2026-03-17)
 
 
