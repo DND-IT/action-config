@@ -149,7 +149,7 @@ jobs:
       - id: set-matrix
         uses: DND-IT/action-config@v3
         with:
-          config_path: '.github/matrix-config.yaml'  # optional, this is the default
+          config_path: '.github/matrix-config.json'  # optional, this is the default
 
   deploy:
     needs: setup
@@ -166,7 +166,7 @@ jobs:
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `config_path` | Path to the configuration file (JSON or YAML) | No | `.github/matrix-config.yaml` |
+| `config_path` | Path to the configuration file (JSON or YAML) | No | `.github/matrix-config.json` |
 | `dimension` | Override the `dimension` from config. Switches the primary dimension and removes the config dimension from the matrix. | No | |
 | `target` | Filter by dimension value(s), or switch dimension (see [Dimension Selection](#dimension-selection)). | No | |
 | `environment` | Filter environments. Comma-separated for multiple (e.g. `dev,prod`) | No | |
