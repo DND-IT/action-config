@@ -6,7 +6,7 @@ inputs:
   config_path:
     description: 'Path to the configuration file (JSON or YAML)'
     required: true
-    default: '.github/matrix-config.json'
+    default: '.github/matrix-config.yaml'
   dimension:
     description: 'Set the primary dimension. Used for directory field, target filtering, and change detection. Defaults to the config settings.dimension value, or "service" if neither is set.'
     required: false

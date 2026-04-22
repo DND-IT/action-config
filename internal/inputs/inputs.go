@@ -25,7 +25,7 @@ type Config struct {
 // Parse reads inputs from environment variables.
 func Parse() *Config {
 	return &Config{
-		ConfigPath:      getEnv("CONFIG_PATH", ".github/matrix-config.json"),
+		ConfigPath:      getEnv("CONFIG_PATH", ".github/matrix-config.yaml"),
 		Dimension:       getEnv("DIMENSION", ""),
 		Target:          getEnv("TARGET", ""),
 		Environment:     getEnv("ENVIRONMENT", ""),
