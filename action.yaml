@@ -45,6 +45,8 @@ outputs:
     description: 'JSON object keyed by dimension values for direct field access via fromJson(). E.g. fromJson(steps.<id>.outputs.config).dev.api.directory'
   length:
     description: 'Number of entries in the matrix (e.g. "4"). Useful for conditional job execution: if: needs.setup.outputs.length > 0'
+  config_file:
+    description: 'Path to the configuration file that was actually read for this run.'
   # Fields that have the same value across all matrix entries are emitted as flat outputs.
   # E.g. steps.<id>.outputs.aws_region, steps.<id>.outputs.directory, etc.
   # Fields that differ between entries (e.g. environment, aws_account_id) are not emitted.
