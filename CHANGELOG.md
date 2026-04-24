@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [3.4.0](https://github.com/DND-IT/action-config/compare/v3.3.0...v3.4.0) (2026-04-24)
+
+
+### Features
+
+* **outputs:** add config_file output with the resolved config path ([#23](https://github.com/DND-IT/action-config/issues/23)) ([abb61d8](https://github.com/DND-IT/action-config/commit/abb61d877ade0ff2dd0e2288cebef21e03e85603))
+
 ## [3.3.0](https://github.com/DND-IT/action-config/compare/v3.2.0...v3.3.0) (2026-04-22)
 
 
