@@ -32,6 +32,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	outputs.SetOutput("config_file", cfg.ConfigPath)
 
 	optsCfg, dimensions := expander.ParseOptions(raw)
 
@@ -136,7 +137,7 @@ func run() error {
 		// This covers single-entry matrices (all fields emitted) and multi-entry
 		// matrices (only shared fields like directory, ecr_repository are emitted;
 		// fields that differ per entry like environment, aws_account_id are skipped).
-		reserved := map[string]bool{"matrix": true, "changes_detected": true, "config": true, "length": true, "base_dir": true, "dimension": true}
+		reserved := map[string]bool{"matrix": true, "changes_detected": true, "config": true, "length": true, "base_dir": true, "dimension": true, "config_file": true}
 		for k, v := range entries[0] {
 			if reserved[k] {
 				continue
