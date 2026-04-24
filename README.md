@@ -185,6 +185,7 @@ The `target` and `environment` inputs are convenience filters applied **after** 
 | `changes_detected` | Whether any entries have changes (`true`/`false`). Only meaningful when `change_detection` is `true`. |
 | `config` | JSON object keyed by dimension values for direct field access via `fromJson()` (see [Config Output](#config-output)) |
 | `length` | Number of entries in the matrix (e.g. `"4"`). Useful for conditional jobs: `if: needs.setup.outputs.length > 0` |
+| `config_file` | Path to the configuration file that was actually read for this run (e.g. `.github/matrix-config.yaml`). |
 | *(flat keys)* | When the matrix contains exactly one entry, each of its fields is also emitted as a flat output (e.g. `aws_region`, `directory`). |
 
 ### Config Output
