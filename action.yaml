@@ -8,31 +8,31 @@ inputs:
     required: true
     default: '.github/matrix-config.yaml'
   dimension:
-    description: 'Set the primary dimension. Used for directory field, target filtering, and change detection. Defaults to the config settings.dimension value, or "service" if neither is set.'
+    description: 'Set the primary dimension. Used for directory field, target filtering, and change detection.'
     required: false
     default: ''
   target:
-    description: 'Filter by dimension value(s). Comma-separated for multiple (e.g. "api,frontend"). If a single value matches a dimension name (not a value of the current dimension), it switches the primary dimension instead.'
+    description: 'Filter by dimension value(s). Comma-separated for multiple.'
     required: false
     default: ''
   environment:
-    description: 'Filter environments. Comma-separated for multiple (e.g. "dev,prod")'
+    description: 'Filter environments. Comma-separated for multiple.'
     required: false
     default: ''
   exclude:
-    description: 'JSON array of patterns to exclude from the matrix (e.g. [{"service":"shared","environment":"dev"}])'
+    description: 'JSON array of patterns to exclude from the matrix'
     required: false
     default: ''
   include:
-    description: 'JSON array of entries to append to the matrix (e.g. [{"service":"shared"}])'
+    description: 'JSON array of entries to append to the matrix'
     required: false
     default: ''
   change_detection:
-    description: 'When true, use git to detect changed files and filter the matrix to only entries with changes. Uses base_dir from settings to map file paths. Requires actions/checkout with fetch-depth: 0.'
+    description: 'Use git to detect changed files and filter the matrix.'
     required: false
     default: 'false'
   summary:
-    description: 'Write all output values to the GitHub Actions step summary for at-a-glance visibility.'
+    description: 'Write all output values to the GitHub Actions step summary.'
     required: false
     default: 'true'
 
@@ -40,20 +40,18 @@ outputs:
   matrix:
     description: 'JSON string containing the matrix configuration'
   changes_detected:
-    description: 'Whether any entries have changes (true/false). Only meaningful when change_detection is true.'
+    description: 'Whether any entries have changes (true/false).'
   config:
-    description: 'JSON object keyed by dimension values for direct field access via fromJson(). E.g. fromJson(steps.<id>.outputs.config).dev.api.directory'
+    description: 'JSON object keyed by dimension values for direct field access via fromJson().'
   length:
-    description: 'Number of entries in the matrix (e.g. "4"). Useful for conditional job execution: if: needs.setup.outputs.length > 0'
+    description: 'Number of entries in the matrix.'
   config_file:
-    description: 'Path to the configuration file that was actually read for this run.'
-  # Fields that have the same value across all matrix entries are emitted as flat outputs.
-  # E.g. steps.<id>.outputs.aws_region, steps.<id>.outputs.directory, etc.
-  # Fields that differ between entries (e.g. environment, aws_account_id) are not emitted.
+    description: 'Path to the configuration file that was actually read.'
 
 runs:
   using: 'docker'
-  image: 'docker://ghcr.io/dnd-it/action-config:3.4.0' # x-release-please-version
+  image: 'docker://ghcr.io/dnd-it/tamci:1.0.0'
+  args: [config]
 
 branding:
   icon: 'zap'

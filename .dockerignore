@@ -1,9 +1,0 @@
-.git
-.github
-.claude
-.vscode
-.idea
-.DS_Store
-testdata
-*.md
-LICENSE

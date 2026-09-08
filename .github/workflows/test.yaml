@@ -5,276 +5,28 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
 permissions:
-  packages: write
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  contents: read
 
 jobs:
-  lint:
+  smoke:
     runs-on: ubuntu-latest
-    name: lint
-    if: github.event.action != 'closed' && !startsWith(github.head_ref, 'release-please--')
+    name: smoke
+    if: "!startsWith(github.head_ref, 'release-please--')"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v5
+      - id: config
+        uses: ./
         with:
-          go-version: "1.23"
+          config_path: .github/matrix-config.example.yaml
 
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-
-  test:
-    runs-on: ubuntu-latest
-    name: test
-    if: github.event.action != 'closed' && !startsWith(github.head_ref, 'release-please--')
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.23"
-
-      - name: run tests
-        run: go test -v -race -coverprofile=coverage.out ./...
-
-      - name: check coverage
-        run: |
-          go tool cover -func=coverage.out | tail -1
-
-  integration:
-    runs-on: ubuntu-latest
-    name: integration
-    needs: [lint, test]
-    outputs:
-      matrix-json: ${{ steps.json.outputs.matrix }}
-      matrix-yaml: ${{ steps.yaml.outputs.matrix }}
-      matrix-filtered: ${{ steps.filtered.outputs.matrix }}
-      matrix-exclude: ${{ steps.exclude.outputs.matrix }}
-      matrix-include: ${{ steps.include.outputs.matrix }}
-      matrix-dimkey: ${{ steps.dimkey.outputs.matrix }}
-      matrix-target-dim: ${{ steps.target-dim.outputs.matrix }}
-      config-json: ${{ steps.json.outputs.config }}
-      length-json: ${{ steps.json.outputs.length }}
-      length-filtered: ${{ steps.filtered.outputs.length }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.23"
-
-      - name: build binary
-        run: go build -o action-config ./cmd/action-config
-
-      - name: test json config
-        id: json
-        run: |
-          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
-            ./action-config
-
-      - name: test yaml config
-        id: yaml
-        run: |
-          INPUT_CONFIG_PATH=testdata/valid-list-config.yml \
-            ./action-config
-
-      - name: test invalid config (should fail)
-        run: |
-          if INPUT_CONFIG_PATH=testdata/invalid-config.json ./action-config 2>&1; then
-            echo "Expected action to fail with invalid config"
-            exit 1
-          fi
-          echo "Invalid config correctly rejected"
-
-      - name: test target filter
-        id: filtered
-        run: |
-          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
-          INPUT_TARGET=api \
-            ./action-config
-
-      - name: test environment filter
-        run: |
-          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
-          INPUT_ENVIRONMENT=dev \
-            ./action-config
-
-      - name: test input exclude
-        id: exclude
-        run: |
-          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
-          INPUT_EXCLUDE='[{"service":"api","environment":"dev"}]' \
-            ./action-config
-
-      - name: test input include
-        id: include
-        run: |
-          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
-          INPUT_INCLUDE='[{"service":"shared","environment":"all"}]' \
-            ./action-config
-
-      - name: test dimension override
-        id: dimkey
-        run: |
-          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
-          INPUT_DIMENSION=terraform \
-            ./action-config
-
-      - name: test target dimension shorthand
-        id: target-dim
-        run: |
-          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
-          INPUT_TARGET=terraform \
-            ./action-config
-
-      - name: test single entry (flat outputs)
-        id: single
-        run: |
-          INPUT_CONFIG_PATH=testdata/valid-list-config.json \
-          INPUT_TARGET=api \
-          INPUT_ENVIRONMENT=dev \
-            ./action-config
-
-      - name: test example config
-        run: |
-          INPUT_CONFIG_PATH=.github/matrix-config.example.json \
-            ./action-config
-
-  verify-counts:
-    runs-on: ubuntu-latest
-    name: verify counts
-    needs: integration
-    steps:
-      - name: verify matrix sizes
-        run: |
-          check() {
-            local name=$1 expected=$2 matrix=$3
-            count=$(echo "$matrix" | jq '. | length')
-            echo "$name: $count entries (expected $expected)"
-            echo "$matrix" | jq '.'
-            echo "---"
-            if [ "$count" -ne "$expected" ]; then
-              echo "FAIL: $name expected $expected, got $count"
-              exit 1
-            fi
-          }
-
-          check "json"       4 '${{ needs.integration.outputs.matrix-json }}'
-          check "yaml"       4 '${{ needs.integration.outputs.matrix-yaml }}'
-          check "filtered"   2 '${{ needs.integration.outputs.matrix-filtered }}'
-          check "exclude"    3 '${{ needs.integration.outputs.matrix-exclude }}'
-          check "include"    5 '${{ needs.integration.outputs.matrix-include }}'
-          check "dimkey"     2 '${{ needs.integration.outputs.matrix-dimkey }}'
-          check "target-dim" 2 '${{ needs.integration.outputs.matrix-target-dim }}'
-
-          # Verify config blob (nested access by dimension values)
-          CONFIG='${{ needs.integration.outputs.config-json }}'
-          DEV_API_DIR=$(echo "$CONFIG" | jq -r '.dev.api.infra.directory')
-          echo "config.dev.api.infra.directory: ${DEV_API_DIR}"
-          if [ "$DEV_API_DIR" != "api" ]; then
-            echo "FAIL: expected config.dev.api.infra.directory=api, got ${DEV_API_DIR}"
-            exit 1
-          fi
-          PROD_ACCOUNT=$(echo "$CONFIG" | jq -r '.prod.frontend.infra.aws_account_id')
-          echo "config.prod.frontend.infra.aws_account_id: ${PROD_ACCOUNT}"
-          if [ "$PROD_ACCOUNT" != "222222222222" ]; then
-            echo "FAIL: expected config.prod.frontend.infra.aws_account_id=222222222222, got ${PROD_ACCOUNT}"
-            exit 1
-          fi
-          echo "Config blob verified"
-
-          # Verify length outputs
-          LENGTH_JSON='${{ needs.integration.outputs.length-json }}'
-          echo "length-json: ${LENGTH_JSON}"
-          if [ "$LENGTH_JSON" != "4" ]; then
-            echo "FAIL: expected length-json=4, got ${LENGTH_JSON}"
-            exit 1
-          fi
-          LENGTH_FILTERED='${{ needs.integration.outputs.length-filtered }}'
-          echo "length-filtered: ${LENGTH_FILTERED}"
-          if [ "$LENGTH_FILTERED" != "2" ]; then
-            echo "FAIL: expected length-filtered=2, got ${LENGTH_FILTERED}"
-            exit 1
-          fi
-          echo "Length outputs verified"
-
-  docker:
-    runs-on: ubuntu-latest
-    name: docker
-    needs: [lint, test]
-    if: github.event_name == 'pull_request' && github.event.action != 'closed'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: log in to ghcr
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: set image tag
-        id: tag
-        run: echo "value=${{ env.REGISTRY }}/${IMAGE_NAME,,}:pr-${{ github.event.number }}" >> "$GITHUB_OUTPUT"
+      - name: assert matrix output
         env:
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
-
-      - name: build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.tag.outputs.value }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  cleanup:
-    runs-on: ubuntu-latest
-    name: cleanup pr image
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
-    steps:
-      - name: delete pr image
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
-          TAG: pr-${{ github.event.number }}
+          MATRIX: ${{ steps.config.outputs.matrix }}
         run: |
-          VERSION_ID=$(gh api \
-            "/orgs/${OWNER}/packages/container/action-config/versions" \
-            --jq ".[] | select(.metadata.container.tags[] == \"${TAG}\") | .id")
-          if [ -n "$VERSION_ID" ]; then
-            gh api --method DELETE \
-              "/orgs/${OWNER}/packages/container/action-config/versions/${VERSION_ID}"
-            echo "Deleted version ${VERSION_ID} (tag: ${TAG})"
-          else
-            echo "No version found with tag: ${TAG}"
-          fi
-
-  verify-matrix:
-    runs-on: ubuntu-latest
-    name: "matrix: ${{ matrix.service }}/${{ matrix.environment }}"
-    needs: integration
-    strategy:
-      matrix:
-        include: ${{ fromJson(needs.integration.outputs.matrix-json) }}
-    steps:
-      - name: show context
-        run: |
-          echo "service:        ${{ matrix.service }}"
-          echo "environment:    ${{ matrix.environment }}"
-          echo "aws_account_id: ${{ matrix.aws_account_id }}"
-          echo "directory:      ${{ matrix.directory }}"
-          echo ""
-          echo "full matrix context:"
-          echo '${{ toJson(matrix) }}' | jq '.'
+          echo "$MATRIX" | jq .
+          echo "$MATRIX" | jq -e 'type == "array" and length > 0' > /dev/null
+          echo "$MATRIX" | jq -e 'map(select(.service == "shared" and .environment == "dev")) | length == 0' > /dev/null

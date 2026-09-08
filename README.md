@@ -645,69 +645,15 @@ jobs:
 
 ## Examples
 
-See the [example workflow](.github/workflows/example.yaml) and example configuration files:
+See the example configuration files:
 - [JSON](.github/matrix-config.example.json) | [YAML](.github/matrix-config.example.yaml)
 
-## Development
+## Implementation
 
-This action is written in Go and runs as a Docker container. It:
-
-1. Reads the specified configuration file
-2. Parses the `settings` and `global` blocks and dimension maps/arrays
-3. Expands the configuration into a cartesian product matrix
-4. Applies exclude/include rules and filters
-5. Adds the `directory` field to each entry
-6. Outputs the configuration as a JSON string for use in matrix strategies
-
-### Testing
-
-Run tests locally:
-```bash
-go test -v -race ./...
-```
-
-### Building
-
-```bash
-go build -o action-config ./cmd/action-config
-```
-
-## Releases
-
-This action uses semantic-release for automated versioning based on conventional commits. When you push to `main`, a new release is automatically created if there are significant changes.
-
-### Commit Message Format
-
-Use conventional commits to automatically determine the version bump:
-
-**Triggers Release:**
-- `feat:` - New feature (minor version bump, e.g., 1.0.0 -> 1.1.0)
-- `fix:` - Bug fix (patch version bump, e.g., 1.0.0 -> 1.0.1)
-- `perf:` - Performance improvement (patch version bump)
-- `revert:` - Revert changes (patch version bump)
-- `BREAKING CHANGE:` - Breaking change (major version bump, e.g., 1.0.0 -> 2.0.0)
-
-**No Release (documentation only):**
-- `docs:` - Documentation changes
-- `refactor:` - Code refactoring
-- `style:` - Code style changes
-- `chore:` - Maintenance tasks
-- `test:` - Test updates
-- `build:` - Build system changes
-- `ci:` - CI/CD changes
-
-### Version Aliases
-
-The release workflow automatically updates version aliases:
-- `v3` - Always points to the latest v3.x.x release
-- `v3.1` - Always points to the latest v3.1.x release
-
-This allows users to pin to major or minor versions:
-```yaml
-- uses: DND-IT/action-config@v3        # Always gets latest v3.x.x
-- uses: DND-IT/action-config@v3.1      # Always gets latest v3.1.x
-- uses: DND-IT/action-config@v3.1.0    # Pinned to specific version
-```
+This action is a thin shim over [tamci](https://github.com/DND-IT/tamci): `action.yaml` runs the
+`ghcr.io/dnd-it/tamci` image with `args: [config]`. The Go code, tests, and release
+process live in that repo. To pick up a new tamci version, bump the image tag in
+`action.yaml`.
 
 ## License
 
