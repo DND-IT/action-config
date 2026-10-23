@@ -1,5 +1,10 @@
 # action-config
 
+> [!WARNING]
+> **Deprecated: this action has been replaced by [tamci](https://github.com/DND-IT/tamci).**
+>
+> `tamci` is a unified Go CLI that consolidates DND-IT's GitHub Actions, including this one. This repository is superseded and no further feature work or fixes should be expected here. New and existing workflows should migrate to [DND-IT/tamci](https://github.com/DND-IT/tamci).
+
 A GitHub Action for centralized configuration management that enables you to define your workflow matrices once and reuse them everywhere. Stop duplicating configuration across multiple workflows!
 
 ## Why Use This?
